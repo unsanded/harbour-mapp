@@ -31,6 +31,7 @@ class OsmProvider : public SlippyProvider
     Q_OBJECT
     QNetworkAccessManager netmanager;
     QString userAgent;
+    QString tileUrl;
 public:
     explicit OsmProvider(QObject *parent = 0);
 

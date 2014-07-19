@@ -2,9 +2,7 @@
 #define QSLIPPYMAP_H
 
 #include <math.h>
-#include <QQuickItem>
 #include <QQuickPaintedItem>
-#include <QQuickImageProvider>
 
 #include "slippycache.h"
 #include "slippyprovider.h"
@@ -13,16 +11,17 @@
 /**
  * @brief The QSlippyMap class
  * QTquick item that draws a slippymap
- * this class does not provide scrolling. It is just a static image.
- * To enable scrolling, use SlippyView
+ * 
  */
 class SlippyMap : public QQuickPaintedItem
 {
+    friend class SlippyView;
     Q_OBJECT
 
     bool dragging;
-    QPoint dragStart;
-    SlippyCoordinates dragStartCoordinates;
+
+    bool drawOffset;
+
 
     //the zoom as a float
     Q_PROPERTY(qreal zoom READ zoom WRITE setZoom NOTIFY zoomChanged);
@@ -36,6 +35,9 @@ protected:
 
 public:
     explicit SlippyMap(QQuickItem *parent = 0);
+    virtual ~SlippyMap();
+
+
 
     virtual void paint(QPainter *painter);
 
@@ -43,10 +45,7 @@ public:
 
     virtual void makeCache(SlippyProvider* provider);
 
-    void mousePressEvent(QMouseEvent *event);
-    void mouseReleaseEvent(QMouseEvent *event);
-    void mouseMoveEvent(QMouseEvent *event);
-    void touchEvent(QTouchEvent *event);
+    virtual SlippyCoordinates coordinates();
 
     qreal zoom() const
     {
@@ -55,10 +54,13 @@ public:
 
 signals:
 
+    void tileChanged();
     void zoomChanged(qreal arg);
 
 public slots:
     virtual void setCoordinates(SlippyCoordinates newCoords);
+    void onTileChanged();
+
     /**
      * @brief reTile
      *move by the given amount of tiles
@@ -68,6 +70,12 @@ public slots:
     virtual void reTile(int dx, int dy);
 
     void setZoom(qreal arg) ;
+
+    // QQuickItem interface
+
+    // QQmlParserStatus interface
+public:
+    virtual void componentComplete();
 };
 
 

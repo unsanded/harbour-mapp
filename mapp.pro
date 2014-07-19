@@ -16,6 +16,10 @@ CONFIG += sailfishapp
 
 CONFIG+=qml_debug
 
+QSG_VISUALIZE=clip
+
+QT += gui
+
 SOURCES += \
     src/slippyprovider.cpp \
     src/tile.cpp \
@@ -35,11 +39,14 @@ OTHER_FILES += \
     rpm/mapp.yaml \
     translations/*.ts \
     mapp.desktop \
-    qml/mapp.qml
+    qml/mapp.qml \
+    qml/pages/Menu.qml \
+    qml/pages/ThirdPage.qml \
+    qml/pages/FourthPage.qml
 
 # to disable building translations every time, comment out the
 # following CONFIG line
-CONFIG += sailfishapp_i18n
+#CONFIG += sailfishapp_i18n
 TRANSLATIONS += translations/map-de.ts
 
 HEADERS += \

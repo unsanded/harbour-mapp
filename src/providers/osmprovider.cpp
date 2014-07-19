@@ -13,14 +13,15 @@ OsmTile::OsmTile(SlippyCoordinates coords, OsmProvider *parent):Tile(coords, par
 
 void OsmTile::receiveData()
 {
+    qDebug() << "ready " << coords;
     if(!reply->header(QNetworkRequest::ContentTypeHeader).toString().toLower().startsWith("image/")){
-        qWarning()<<"wrong docType";
+        qWarning()<<"wrong docType" << coords;
         return;
     }
     QByteArray data( reply->readAll());
 
     if(image.loadFromData(data)){
-        qDebug() << "ready";
+        m_ready=true;
         emit ready(this);
     }else{
         qWarning() << "failed to load image";
@@ -32,15 +33,15 @@ OsmProvider::OsmProvider(QObject *parent) :
     SlippyProvider(parent)
 {
 
+    tileUrl   = "http://b.tile.openstreetmap.org/%1/%2/%3.png";
     userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:13.0) Gecko/20100101 Firefox/13.0";
 }
 
 Tile* OsmProvider::makeTile(SlippyCoordinates coords)
 {
-    qDebug() << "osm maketile";
 
     //request a tile from osm.org
-    QUrl url(QString("http://b.tile.openstreetmap.org/%1/%2/%3.png").arg(coords.zoom).arg( coords.x).arg(coords.y));
+    QUrl url(QString(tileUrl).arg(coords.zoom()).arg( coords.tilePos().x()).arg(coords.tilePos().y()));
     QNetworkRequest request(url);
 
     request.setHeader(QNetworkRequest::ContentTypeHeader, QLatin1String("application/x-www-form-urlencoded"));

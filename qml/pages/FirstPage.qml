@@ -39,18 +39,36 @@ Page {
     id: page
     Slider{
         id:zoomslider
-        width: parent.width
+        anchors.top: parent.top
+        width: parent.width*3/4
         anchors.bottom: map.top
         maximumValue: 20
         value: map.zoom
-
+    }
+    Button{
+        anchors.left: Slider.right
+        anchors.top: parent.top
+        anchors.right: parent.right
+        text: "10"
+        onClicked: {
+            map.zoom=10;
+        }
     }
 
-    SlippyMap{
-        id:map
-        width: parent.width
+    Rectangle{
+        border.color: "#ff0000"
+        width:parent.width
+
         anchors.bottom: parent.bottom
         anchors.top:zoomslider.bottom
+
+
+        SlippyMap{
+            id:map
+            anchors.fill: parent
+            zoom:zoomslider.value
+            width: parent.width
+        }
     }
 
 }

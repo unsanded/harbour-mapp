@@ -34,45 +34,23 @@ import Slippy 1.0
 
 Page {
     id: page
+    allowedOrientations: Orientation.All
 
-        PageHeader{
-            Text {
-                id: title
-                text: qsTr("mapView")
+        anchors.fill: parent
+
+
+            PageHeader{
+                id:header
+                title: "MapView testarea"
             }
-        }
-    SilicaFlickable{
 
+            SlippyView{
+                id:mapview
 
-        width: parent.width
-        height: parent.height
-        contentWidth: map.width
-        contentHeight: map.height
-
-        onContentXChanged:{
-            var xtileoff=0;
-            while(contentX>map.width/2+128){
-                contentX-=256;
-                xtileoff++;
+                anchors.bottom: parent.bottom
+                width: page.width
+                height: page.height-header.height
             }
-            while(contentX<(map.width/2-128)){
-                contentX+=256;
-                xtileoff--;
-            }
-            map.reTile(xtileoff, 0)
-        }
-
-        SlippyMap{
-            id: map
-            width: 4096
-            height: 4096
-
-        }
-        HorizontalScrollDecorator{
-            color: red
-
-        }
-    }
 }
 
 

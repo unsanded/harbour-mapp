@@ -3,17 +3,22 @@
 #include <QDebug>
 
 Tile::Tile(SlippyCoordinates coordinates, QObject *parent) :
-    image(256, 256, QImage::Format_ARGB32),
     QObject(parent),
-  coords(coordinates)
+    coords(coordinates),
+    image(256, 256, QImage::Format_ARGB32)
 {
+    next=0;
+    previous=0;
+    m_ready=false;
+    image.fill(QColor(100,100,200,10));
     //just to test
     QPainter p;
     p.begin(&image);
     p.setPen(Qt::green);
 
-    p.drawArc(25,25,200,200,0,100);
+    p.drawArc(0,0,256,256,0,270*16);
     p.end();
+
 
 }
 
@@ -22,9 +27,10 @@ inline double sec(double in){
     return 1.0/cos(in);
 }
 
-SlippyCoordinates::SlippyCoordinates(gps::Point location, int zoom)
+SlippyCoordinates::SlippyCoordinates(gps::Point location, int zoom, QObject *parent):
+    QObject(parent)
 {
-    this->zoom=zoom;
+    this->m_zoom=zoom;
 
     // for the calculation see:
     // http://wiki.openstreetmap.org/wiki/Tilenames#X_and_Y
@@ -32,61 +38,71 @@ SlippyCoordinates::SlippyCoordinates(gps::Point location, int zoom)
     double latitude=location.latitude;
     double longitude=location.longitude;
 
-    double numTiles=pow(2,zoom);
+    double mercatorx = ((longitude + 180) / 360);
 
-    double xTile = numTiles * ((longitude + 180) / 360);
+    double mercatory = (1.0 - (log(tan(latitude/180.0*M_PI) + sec(latitude/180.0*M_PI)) / M_PI)) / 2.0;
 
-    double yTile = numTiles * (1.0 - (log(tan(latitude/180.0*M_PI) + sec(latitude/180.0*M_PI)) / M_PI)) / 2.0;
-
-    x=xTile;
-    y=yTile;
-
-    double buf;
-    offsetX=modf(xTile,&buf);
-    offsetY=modf(yTile,&buf);
-    m_hasOffset=true;
+    setMercatorPos(QPointF(mercatorx, mercatory));
 
 
 }
 
-bool SlippyCoordinates::hasOffset() const
+
+
+int SlippyCoordinates::zoom() const
 {
-    return m_hasOffset;
+    return m_zoom;
 }
+
 
 
 
 SlippyCoordinates SlippyCoordinates::operator+(QPoint offset)
 {
-   QPointF fpoint=offset;
-   fpoint/=256.0;
-   return operator+(fpoint);
+    SlippyCoordinates res(zoom(), x(), y());
+    res.settilePos(res.tilePos()+ offset);
+    return res;
 }
 
 SlippyCoordinates SlippyCoordinates::operator+(QPointF offset)
 {
     SlippyCoordinates ret;
-    ret.zoom=zoom;
-    ret.offsetX=offsetX+offset.x();
-    ret.offsetY=offsetY+offset.y();
-    ret.x=x;
-    ret.y=y;
-    while(ret.offsetY>=1.0){
-        ret.offsetY -= 1.0;
-        ret.y++;
-    }
-    while(ret.offsetY<0.0){
-        ret.offsetY += 1.0;
-        ret.y--;
-    }
-    while(ret.offsetX>=1.0){
-        ret.offsetX -= 1.0;
-        ret.x++;
-    }
-    while(ret.offsetX<0.0){
-        ret.offsetX += 1.0;
-        ret.x--;
-    }
-    ret.m_hasOffset=true;
-    return ret;
+    ret.setMercatorPos(MercatorPos() + offset );
+    return *this;
 }
+
+
+bool SlippyCoordinates::operator<(const SlippyCoordinates &other) const{
+    if(zoom()<other.zoom()) return true;
+    if(zoom()>other.zoom()) return false;
+
+    if(tilePos().x()<other.tilePos().x()) return true;
+    if(tilePos().x()>other.tilePos().x()) return false;
+
+    if(tilePos().y()<other.tilePos().y()) return true;
+    if(tilePos().y()>other.tilePos().y()) return false;
+
+    return false; // they are equal;
+}
+
+SlippyCoordinates::SlippyCoordinates(int zoom, int x, int y, QObject *parent):
+    QObject(parent),
+    m_zoom(zoom),
+    m_tilePos(x,y)
+{
+    updateMercatorFromTiles();
+}
+
+gps::Point SlippyCoordinates::toGps(){
+
+
+    double lon_deg = MercatorPos().x() * 360.0 - 180.0;
+
+    double lat_rad = atan(sinh(M_PI * (1 - 2 * MercatorPos().y())));
+    double lat_deg = lat_rad * 180.0 / M_PI;
+
+    return gps::Point(lat_deg, lon_deg);
+
+}
+
+
