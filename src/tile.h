@@ -5,6 +5,9 @@
 
 #include <QImage>
 #include <QPainter>
+#include <QQuickWindow>
+#include <QSGTexture>
+#include <QSGTransformNode>
 #include "gps/point.h"
 #include "math.h"
 
@@ -249,19 +252,32 @@ private:
 class Tile : public QObject
 {
     Q_OBJECT
+
 protected:
     bool m_ready;
+
+    friend class SlippyView;
+    QSGNode* node;
+    QSGTransformNode* transformNode;//a link to the transformnode on the grid
+    QSGTexture* texture;
+
+    bool nodeMadeWhileReady;
+    //these two functions may only be called from within the updatepaintnode function
+
 
     // to make them linkedListable
     friend class SlippyCache;
     SlippyCache* cache;
     Tile* next;
     Tile* previous;
+
+
 public:
+    virtual QSGNode* makeNode(QQuickWindow *window);
+    virtual void dropNode();
     bool isReady() const { return m_ready; }
     SlippyCoordinates coords;
     explicit Tile(SlippyCoordinates coords, QObject* parent=0);
-
 
     QImage image;
 

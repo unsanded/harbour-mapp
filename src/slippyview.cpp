@@ -1,562 +1,196 @@
 #include "slippyview.h"
-#include <QSGSimpleRectNode>
-#include  <QTouchEvent>
-#include <QQuickItem>
-#include <QSGClipNode>
-#include <QSGSimpleRectNode>
-#include <QQuickWindow>
+
+#include <QtQuick>
+#include <math.h>
+
+#include <src/tile.h>
+
+using namespace std;
 
 
-
-SlippyView::SlippyView(QQuickItem *parent) :
+SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
     QQuickItem(parent),
-    m_Location(gps::Point(53.460477, 6.836115), 10)
+    cache(cache),
+    currentLocation(4,3,3)
 {
-
-
-    painter=painterthread.getPainter();
-
-   setzoom(10);
-
-    setClip(true);
-    setTransformOrigin(Center);
+    //matrices.move.translate(-256, -128,0);
+    nodes.scrollTransform=0;
     setFlag(ItemHasContents);
     setFlag(ItemClipsChildrenToShape);
-
-
-    texture=0;
-
-
-    connect(this, &QQuickItem::heightChanged,
-            this, &SlippyView::sizeChanged);
-    connect(this, &QQuickItem::widthChanged,
-            this, &SlippyView::sizeChanged);
-
-    connect(painter, &SlippyPainter::pixmapChanged,
-            this,    &SlippyView::onPixmapChange);
+    for(int i=     0       ; i< HTILEBUFFER  ; i++)
+    for(int j=     0       ; j< VTILEBUFFER  ; j++)
+    {
+        drawnTiles[i][j]=cache->getTile(currentLocation.tilePos().x()+i,currentLocation.tilePos().y()+j, currentLocation.zoom());
+    }
 }
 
+void SlippyView::stepTile(int dx, int dy)
+{
+    int i,j;
+    currentLocation.settilePos(currentLocation.tilePos()+ QPoint(dx,dy));
+    int tileX = currentLocation.tilePos().x();
+    int tileY = currentLocation.tilePos().y();
+    int zoom = currentLocation.zoom();
+    
+    qDebug() << "STEPPING " << dx << ',' << dy;
+    if(dx<HTILEBUFFER && dy<VTILEBUFFER && dx>-HTILEBUFFER && dy>-VTILEBUFFER && false)
+    {
+        QStack<QSGTransformNode*> freenodes;
+
+        //drop tiles that move off the grid
+        for(i=(dx<0?0:HTILEBUFFER-dx); i< (dx<0?dx:HTILEBUFFER); i++)// the tiles next to the block that can be moved
+        for(j=     0       ; j< VTILEBUFFER          ; j++)// over  the full hight
+        {
+            qDebug() << "DEL " << i << j;
+            freenodes.push(drawnTiles[i][j]->transformNode);
+            drawnTiles[i][j]->dropNode();
+        }
+
+        for(i=(dx<0?0:dx); i<(dx<0?dx+HTILEBUFFER:HTILEBUFFER); i++)    // the tiles above or below the block that can be moved
+        for(j=(dy<0?0:VTILEBUFFER-dy); j< (dy<0?-dy:VTILEBUFFER); j++)
+        {
+            qDebug() << "DEL " << i << j;
+            freenodes.push(drawnTiles[i][j]->transformNode);
+            drawnTiles[i][j]->dropNode();
+        }
+
+        
+        //move the tiles that can be moved
+        for(i=min(VTILEBUFFER-1, dx+HTILEBUFFER); i>=max(0,dx); i--)
+        for(j=min(VTILEBUFFER-1, dy+VTILEBUFFER); j>=max(0,dy); j--)
+        {
+            qDebug() << "MOVE" << i-dx << j-dy << "to" << i << j;
+            drawnTiles[i][j]=drawnTiles[i-dx][j-dy];
+        }
+                    
+        //get the new tiles
+        for(i=(dx>=0)?0:dx+HTILEBUFFER;  i<(dx>0?dx:HTILEBUFFER)   ;i++)//the tiles next to the block that has been moved
+        for(j=0;j<VTILEBUFFER;j++)//over the full height
+        {
+            qDebug() << "ADD " << i << j;
+            drawnTiles[i][j]=cache->getTile(tileX+i,tileY+j,zoom);
+            drawnTiles[i][j]->transformNode=freenodes.pop();//give it one of the available transformnodes
+        }
+        
+        for(i=(dx>=0)?dx:0;  i<(dx>0?HTILEBUFFER:dx)   ;i++)//the tiles above or below the block that has been moved
+        for(j=(dy<0)?dy+VTILEBUFFER:0;j<(dy>0?dy:VTILEBUFFER);j++)
+        {
+            qDebug() << "ADD " << i << j;
+            drawnTiles[i][j]=cache->getTile(tileX+i,tileY+j,zoom);
+            drawnTiles[i][j]->transformNode=freenodes.pop();//give it one of the available transformnodes
+        }
+    }
+    else//stepped more than four, so drop all, and fill the matrix again
+    for(i=0;i<HTILEBUFFER;i++)
+    for(j=0;j<VTILEBUFFER;j++)
+    {
+        qDebug() << "RES " << i << j;
+        dropNodeQueue.insert(drawnTiles[i][j]);
+        drawnTiles[i][j]=cache->getTile(tileX+i,tileY+j,zoom);
+    }
+
+    for(i=0;i<HTILEBUFFER;i++)
+    for(j=0;j<VTILEBUFFER;j++)
+        dropNodeQueue.remove(drawnTiles[i][j]);
+
+    qDebug()<< "Nodes queued for dropping:" << dropNodeQueue.size();
+}
+
+void SlippyView::updateCompleteMatrix(bool upd)
+{
+    changes.matrixChanged=true;
+    if(!QRectF(-1,-1,2,2).contains(matrices.movementFromTile))
+    {
+        stepTile((int) matrices.movementFromTile.x(), (int) matrices.movementFromTile.y());
+        matrices.move.translate((int)matrices.movementFromTile.x()*256, (int)matrices.movementFromTile.y()*256, 0);
+        matrices.movementFromTile.rx()-=(int)matrices.movementFromTile.x();
+        matrices.movementFromTile.ry()-=(int)matrices.movementFromTile.y();
+        changes.gridChanged=true;
+    }
+
+    matrices.complete=matrices.rotate*matrices.zoom*matrices.move;
+    if(upd) update();
+}
 
 
 
 void SlippyView::touchEvent(QTouchEvent *event)
 {
-
+    if(event->touchPoints().size()!=1)
+        return;
+    if(event->touchPointStates() == Qt::TouchPointPressed)
+        return;
     event->accept();
+    QPointF movementRelative = event->touchPoints()[0].lastPos()-event->touchPoints()[0].pos();
+
+    matrices.movementFromTile+=movementRelative/256;
+
+    matrices.move.translate(-movementRelative.x(), -movementRelative.y(), 0);
+    updateCompleteMatrix();
+    update();
+
+}
 
 
-    QTouchEvent::TouchPoint point = event->touchPoints()[0];
+QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data)
+{
+    QSGTransformNode* node;
 
-    if(event->touchPoints().size()==1){
-        if(point.state() == Qt::TouchPointPressed){
-            QVector<int> id;
-            id << point.id();
-            grabTouchPoints(id);
-            qDebug()<<"grabbed " << point.id();
+    if(!oldNode)
+    {
+        node=new QSGTransformNode;
 
-            qDebug()<<"on location " << posToCoordinates(point.pos()).toGps();
+        //initialise transformation nodes for each tile;
+        for(int i=0; i<HTILEBUFFER;i++)
+        for(int j=0; j<VTILEBUFFER;j++)
+        {
+            changes.gridChanged=true;
 
-            setKeepTouchGrab(true);
-        }
-        if(point.state()==Qt::TouchPointMoved){
-            QPointF offset(point.pos()-point.lastPos());
-            m_Location.moveByPixels(-offset);
-            updateMatrix();
+           // drawnTiles[i][j]->makeNode(window())->appendChildNode(new QSGSimpleRectNode(QRectF(10,10,110,110),QColor(Qt::red)));
 
-
+            node->markDirty(QSGNode::DirtyForceUpdate);
 
         }
     }
 
     else
-    // there are two fingers on the screen. So we are being pinched
-    if(event->touchPoints().size()==2 ){
+        node=(QSGTransformNode*) oldNode;
 
-
-        QTouchEvent::TouchPoint point2=event->touchPoints()[1];
-        //START OF ZOOMING
-        if(event->touchPointStates()& Qt::TouchPointPressed){
-
-            QVector<int> ids;
-            ids << point.id();
-            ids << point2.id();
-            grabTouchPoints(ids);
-
-            zoomStartMercatorPos=Location().MercatorPos();
-            zoomStartPos=point.pos();
-            zoomStart=zoom();
-
-            qDebug()<<"STARTED";
-            zoomStartVector=QVector2D(point2.pos() - point.pos());
-            qDebug() <<zoomStartVector;
+    if(changes.matrixChanged){
+        node->setMatrix(matrices.complete);
+        node->markDirty(QSGNode::DirtyMatrix);
+        changes.matrixChanged=false;
+    }
+    if(changes.gridChanged){
+        changes.gridChanged=false;
+        node->removeAllChildNodes();
+        for(int i=0; i<HTILEBUFFER;i++)
+        for(int j=0; j<VTILEBUFFER;j++)
+        {
+            qDebug() << "reAdding node" << i << j;
+            QMatrix4x4 translation;
+            translation.translate(i*256, j*256,0);
+            node->appendChildNode(drawnTiles[i][j]->makeNode(window()));
+            drawnTiles[i][j]->transformNode->setMatrix(translation);
+            drawnTiles[i][j]->transformNode->markDirty(QSGNode::DirtyMatrix);
+        }
+        if(!dropNodeQueue.empty())
+        {
+            qDebug() << "dropping nodes";
+            for( Tile* n : dropNodeQueue){
+                n->dropNode();
+            }
+            dropNodeQueue.clear();
         }
 
-       if( event->touchPointStates()&Qt::TouchPointMoved){
-
-
-
-
-            // vector from finger one to finger two
-            QVector2D vector   (point2.pos()-point.pos());
-
-            qDebug() << "PINCHING";
-            qDebug() << point.id() << ' ' << point2.id();
-            qDebug() << point2.pos();
-            qDebug() << point.pos();
-
-            //for now, just use the ratio to zoom
-            double lengthRatio=vector.length()/zoomStartVector.length();
-
-            qDebug() << "ZOOMING BY " << lengthRatio;
-
-            /*
-            setmapOffset(
-                        zoomStartOffset-
-                        (
-                            (point.pos()-zoomStartPos)
-                            +
-                            zoomStartPos*(1-lengthRatio)
-                        )
-            );//*/
-
-            setzoom(zoomStart*lengthRatio);
-            //todo zoom
-
-
-            //todo rotate
-        }
     }
-}
-
-
-
-
-void SlippyView::settransformationMatrix(QMatrix4x4 arg)
-{
-     if (m_transformationMatrix != arg)
-    {
-        m_transformationMatrix = arg;
-        m_transformationMatrixInverse=m_transformationMatrix.inverted();
-        emit transformationMatrixChanged(arg);
-        matrixChanged=true;
-        update();
-    }
-}
-
-
-void SlippyView::setrotation(qreal arg)
-{
-    if (m_rotation != arg) {
-        m_rotation = arg;
-        while(m_rotation>360)
-            m_rotation-=360;
-        while(m_rotation<=0)
-            m_rotation+=360;
-        emit rotationChanged(arg);
-
-    }
-    updateMatrix();
-}
-
-void SlippyView::setzoom(qreal arg)
-{
-    if (m_zoom != arg) {
-
-        //the zoomlevel has changed, so we need to paint a scaled version of what we have now in the buffer.
-        // this makes zooming just a little smoother
-        m_zoom = arg;
-
-        if(abs(m_zoom-arg)>1)
-            painter->scale(pow(
-                              2,
-                              floor( abs(m_zoom-arg))
-                          ) );
-        m_Location.setzoom(zoom());
-            painter->getMap()->currentLocation=Location();
-
-        emit zoomChanged(arg);
-    }
-
-    updateMatrix();
-}
-
-
-
-SlippyCoordinates SlippyView::posToCoordinates(QPointF pos)
-{
-    SlippyCoordinates res;
-
-
-
-    QVector3D posv(pos.x(), pos.y(), 0);
-
-    QVector3D offsetv = m_transformationMatrixInverse*posv;
-
-    SlippyCoordinates mapOrigin(Location().zoom(), Location().x(), Location().y());
-    mapOrigin.moveByPixels(QPointF(offsetv.x(), offsetv.y()));
-    return mapOrigin;
-
-}
-
-void SlippyView::sizeChanged(){
-    if(painter->getMap()){
-        QSizeF rect(boundingRect().size());
-        rect+=QSizeF(512.0,512.0);
-        painter->getMap()->setSize(rect);
-    }
-
-    qDebug() << "Resized to: "<< boundingRect();
-    paintMapBuffer();
-}
-
-void SlippyView::onPixmapChange(QPixmap *pixmap)
-{
-    Q_UNUSED(pixmap);
-    qDebug()<<"have new pixmap... upating";
-    bufferChanged=true;
-    update();
-}
-
-
-
-
-
-
-bool SlippyView::isTextureProvider()
-{
-    return false;
+    return node;
 }
 
 void SlippyView::classBegin()
 {
 }
 
-
 void SlippyView::componentComplete()
 {
-    
-    qDebug()<< "Complete" << boundingRect();
-    qDebug()<< childrenRect();
-    qDebug()<< "childcount:" << childItems().size();
-
-    connect(&redrawTimer, &QTimer::timeout,
-            this, &SlippyView::checkQueuedUpdate);
-
-    connect(&m_Location, &SlippyCoordinates::tileOffsetChanged,
-            this, &SlippyView::updateMatrix);
-    connect(&m_Location, &SlippyCoordinates::tilePosChanged,
-            this, &SlippyView::paintMapBuffer);
-
-    setKeepMouseGrab(true);
-    redrawTimer.setSingleShot(true);
-    setClip(true);
-
-    redrawTimer.setInterval(500);
-
-    sizeChanged();
 }
-
-
-
-
-QSGNode *SlippyView::updatePaintNode(QSGNode *node, UpdatePaintNodeData * data)
-{
-    Q_UNUSED(data)
-
-    //Initial setup of nodes
-    if(!node){
-
-        transformNode = new QSGTransformNode;
-        node=transformNode;
-        matrixChanged=true;
-
-        QSGSimpleRectNode* rect=new QSGSimpleRectNode;
-        rect->setRect(110,110,100,100);
-        rect->setColor(Qt::cyan);
-        transformNode->appendChildNode(rect);
-        textureNode=new QSGSimpleTextureNode;
-
-        //temporary texture;
-        QImage img(200,200, QImage::Format_ARGB32);
-        img.fill(Qt::gray);
-        QSGTexture* texture = window()->createTextureFromImage(img);
-
-        textureNode->setTexture(texture);
-
-        transformNode->appendChildNode(textureNode);
-        bufferChanged=true;
-
-    }
-    // just in case...
-
-    if(transformNode!=node)
-        qWarning()<< "nodes not equal";
-    transformNode=static_cast<QSGTransformNode*> (node);
-
-    if(matrixChanged){
-        matrixChanged=false;
-        transformNode->setMatrix(m_transformationMatrix);
-        transformNode->markDirty(QSGNode::DirtyMatrix);
-
-    }
-
-
-    // this should only happen when switching tile-coordinates or zoomlevel
-    if(bufferChanged ){
-        bufferChanged=false;
-        if(texture)
-            delete texture;
-
-       texture = this->window()->createTextureFromImage(painter->getPixmap()->toImage());
-       textureNode->setTexture(texture);
-       textureNode->setRect(QRectF(QPointF(0,0), painter->getPixmap()->size()) );
-       textureNode->markDirty(QSGNode::DirtyMaterial);
-
-       offsetChanged=true;
-    }
-    return transformNode;
-}
-
-void SlippyView::updateMatrix()
-{
-    QMatrix4x4 newMatrix;
-    newMatrix.scale(pow(2.0, zoom()-floor(zoom()) ) );
-    newMatrix.rotate(rotation(), 0,0,1 );
-    newMatrix.translate(-mapOffset().x()*TILE_SIZE, -mapOffset().y()*TILE_SIZE);
-    settransformationMatrix(newMatrix);
-}
-
-void SlippyView::paintMapBuffer()
-{
-
-    if(!painter->getMap())
-        return;
-    if(painter->getMap()->currentLocation.tilePos()==m_Location.tilePos())
-        return;
-
-    QPoint offset=m_Location.tilePos()-painter->getMap()->currentLocation.tilePos();
-
-    offset*=-TILE_SIZE;
-
-    painter->getMap()->currentLocation=m_Location;
-
-    painter->move(offset);//at this point the buffer hasn't been repainted, so we have to shift the ex
-
-    qDebug() << "repainting map" << Location();
-    painterthread.queueRepaint();
-
-}
-
-
-void SlippyView::queueUpdate()
-{
-    if(!hasRedrawQueued){
-        hasRedrawQueued=true;
-        redrawTimer.start();
-    }
-}
-
-void SlippyView::checkQueuedUpdate()
-{
-    if(hasRedrawQueued){
-        update();
-        hasRedrawQueued=false;
-        redrawTimer.stop();
-    }
-}
-
-
-
-
-void SlippyView::touchUngrabEvent()
-{
-    qDebug()<< "UNGRABBED";
-}
-
-
-SlippyPainter::SlippyPainter():
-    pixmap1(new QPixmap(1024, 1024)),
-    pixmap2(new QPixmap(1024, 1024))
-{
-
-
-    map=new SlippyMap;
-
-    connect(
-        getMap(), SIGNAL(tileChanged()),
-        this, SLOT (repaint())
-       );
-    connect(
-        getMap(), SIGNAL(heightChanged()),
-        this, SLOT (updateSize())
-        );
-    connect(
-        getMap(), SIGNAL(widthChanged()),
-        this, SLOT (updateSize())
-        );
-
-    updateChecker.setInterval(10000);
-    connect(
-        &updateChecker, &QTimer::timeout,
-        this, &SlippyPainter::repaint
-        );
-
-    updateChecker.start();
-    repaint();
-}
-
-void PainterThread::run()
-{
-    SlippyPainter painter;
-    this->painter=&painter;
-    exec();
-    this->painter=0;
-}
-
-void PainterThread::queueRepaint()
-{
-    QMetaObject::invokeMethod(painter, "repaint", Qt::QueuedConnection);
-}
-
-void SlippyPainter::repaint()
-{
-    QMutexLocker l(&mutex);
-    needRepaint=1;
-    while(needRepaint){
-    needRepaint=0;//threads are weird
-
-    qDebug()<<"Repainting";
-    QPixmap* otherpixmap;
-    if(currentPixmap==pixmap1)
-    {
-        qDebug()<< "PAINTING on buffer one";
-        otherpixmap=pixmap2;
-    }
-    else
-    {
-        qDebug()<< "PAINTING on buffer two";
-        otherpixmap=pixmap1;
-    }
-    otherpixmap->fill(Qt::darkBlue);
-    QPainter p(otherpixmap);
-    getMap()->paint(&p);
-
-    qDebug() << "one" << pixmap1;
-    qDebug() << "two" << pixmap2;
-    qDebug() << "now on buffer " << currentPixmap;
-
-    currentPixmap=otherpixmap;
-
-
-    emit pixmapChanged(currentPixmap);
-    }//while
-}
-
-
-void SlippyPainter::updateSize()
-{
-
-    QMutexLocker l(&mutex);
-
-    QPixmap* oldPixmap1=pixmap1;
-    QPixmap* oldPixmap2=pixmap2;
-
-    qDebug()<< "Updating size";
-
-        pixmap2=new QPixmap(getMap()->width(), getMap()->height());
-        pixmap1=new QPixmap(getMap()->width(), getMap()->height());
-        pixmap1->fill(Qt::red);
-        pixmap2->fill(Qt::red);
-    delete oldPixmap1;
-    delete oldPixmap2;
-}
-
-void SlippyPainter::scale(double scale){
-    QPixmap* oldMapBuffer;
-
-    qDebug()<<"scale";
-    QMutexLocker l(&mutex);
-    qDebug()<<"lock";
-
-    if(currentPixmap==pixmap1){
-
-        oldMapBuffer=pixmap2;
-        pixmap2=new QPixmap(pixmap2->size());
-
-        pixmap2->fill(Qt::darkRed);
-
-        QPainter p;
-        p.begin(pixmap2);
-
-        qDebug() << "drawing old map onto the new one with halve scale" << scale;
-        if(scale<1)
-            p.drawPixmap(
-                        QRect({0,0}, pixmap2->size()*scale),
-                        *pixmap1,
-                        QRect({0,0}, pixmap2->size())
-                        );
-
-        else
-            p.drawPixmap(
-                        QRect({0,0}, pixmap2->size()),
-                        *pixmap1,
-                        QRect({0,0}, pixmap2->size()/scale)
-                        );
-
-        p.end();
-        currentPixmap=pixmap2;
-    }
-    else
-    {
-
-        oldMapBuffer=pixmap1;
-
-        pixmap1=new QPixmap(pixmap1->size());
-
-        pixmap1->fill(Qt::darkRed);
-
-        QPainter p;
-        p.begin(pixmap2);
-
-        qDebug() << "drawing old map onto the new one";
-        if(scale<1)
-            p.drawPixmap(
-                        QRect({0,0}, pixmap1->size()*scale),
-                        *pixmap2,
-                        QRect({0,0}, pixmap1->size())
-                        );
-
-        else
-            p.drawPixmap(
-                        QRect({0,0}, pixmap1->size()),
-                        *pixmap2,
-                        QRect({0,0}, pixmap1->size()/scale)
-                        );
-
-        p.end();
-        currentPixmap=pixmap1;
-    }
-    delete oldMapBuffer;
-    emit pixmapChanged(currentPixmap);
-}
-
-void SlippyPainter::move(QPoint offset)
-{
-    qDebug()<< "Move";
-    QMutexLocker l(&mutex);
-
-    QPixmap* otherpixmap;
-    if(currentPixmap==pixmap1)
-        otherpixmap=pixmap2;
-    else
-        otherpixmap=pixmap1;
-
-
-    otherpixmap->fill(Qt::darkYellow);
-    QPainter p(otherpixmap);
-    p.drawPixmap(offset, *currentPixmap);
-
-    currentPixmap=otherpixmap;
-    emit pixmapChanged(currentPixmap);
-}
-

@@ -16,6 +16,8 @@ CONFIG += sailfishapp
 
 CONFIG+=qml_debug
 
+CONFIG+=C++11
+
 QSG_VISUALIZE=clip
 
 QT += gui

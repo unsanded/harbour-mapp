@@ -34,7 +34,9 @@ public:
      * @param coords the slippyCoordinates from which to get the tile
      * @return the tile belonging to the coordinates
      */
-    virtual Tile *getTile(const SlippyCoordinates coords);
+    virtual Tile* getTile(const SlippyCoordinates coords);
+    Tile* getTile(int x, int y, int zoom );
+
 
 
 signals:

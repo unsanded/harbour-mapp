@@ -19,8 +19,14 @@ SlippyCache::~SlippyCache()
     delete(provider);
 }
 
+Tile *SlippyCache::getTile(int x, int y, int zoom )
+{
+    return SlippyCache::getTile(SlippyCoordinates(zoom,x,y));
+}
+
 Tile *SlippyCache::getTile(const SlippyCoordinates coords)
 {
+    qDebug() << "getting tile " << coords;
     QMutexLocker l(&mutex);
     Tile* retval;
     if(ramCache.contains(coords)){
