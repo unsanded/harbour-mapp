@@ -40,8 +40,10 @@ public:
 
 
 signals:
+    void tileReady(Tile*);
 
 public slots:
+    void onTileReady(Tile*tile);
 
     virtual void deleteAllTiles();
 

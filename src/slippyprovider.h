@@ -51,7 +51,6 @@ public:
 
 
             signals:
-    void tileLoaded(Tile&);
     void tileChanged(Tile*);
     void tileChanged();
 

@@ -13,7 +13,7 @@ SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
     cache(cache),
     currentLocation(4,3,3)
 {
-    //matrices.move.translate(-256, -128,0);
+    matrices.move.translate(-256, -128,0);
     nodes.scrollTransform=0;
     setFlag(ItemHasContents);
     setFlag(ItemClipsChildrenToShape);
@@ -112,6 +112,13 @@ void SlippyView::updateCompleteMatrix(bool upd)
     if(upd) update();
 }
 
+void SlippyView::onTileReady(Tile *tile)
+{
+   changes.tileChanged=true;
+   changes.changedTiles.push(tile);
+   update();
+}
+
 
 
 void SlippyView::touchEvent(QTouchEvent *event)
@@ -182,8 +189,16 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data
             }
             dropNodeQueue.clear();
         }
-
     }
+    if(changes.tileChanged){
+        changes.tileChanged=false;
+        for( Tile* n : changes.changedTiles){
+            if(n->node)
+                    n->makeNode(window());
+        }
+        changes.changedTiles.clear();
+    }
+
     return node;
 }
 
@@ -193,4 +208,5 @@ void SlippyView::classBegin()
 
 void SlippyView::componentComplete()
 {
+    connect(cache, SIGNAL(tileReady(Tile*)), this, SLOT(onTileReady(Tile*)));
 }

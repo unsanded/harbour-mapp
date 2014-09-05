@@ -9,7 +9,7 @@ QSGNode *Tile::makeNode(QQuickWindow* window)
     qDebug() << "Updating node " << coords;
     if(node && !nodeMadeWhileReady && isReady()){
         qDebug()<<"Reusing node";
-        //drop the node that was made while we were not ready
+        //drop the texture that was made while we were not ready
         delete texture;
         texture=window->createTextureFromImage(image);
         ((QSGSimpleTextureNode*)node)->setTexture(texture);
@@ -21,22 +21,26 @@ QSGNode *Tile::makeNode(QQuickWindow* window)
     if(!node){
         qDebug() << "Creating node " ;
         node=new QSGSimpleTextureNode;
+        transformNode=new QSGTransformNode;
+
+        nodeMadeWhileReady=isReady();
         texture=window->createTextureFromImage(image);
         ((QSGSimpleTextureNode*)node)->setTexture(texture);
         ((QSGSimpleTextureNode*)node)->setRect(0,0,256,256);
         node->markDirty(QSGNode::DirtyMaterial);
 
-        transformNode=new QSGTransformNode;
+
+        transformNode->setFlag(QSGNode::OwnedByParent, false);
+        node->setFlag(QSGNode::OwnedByParent, false);
 
         transformNode->appendChildNode(node);
-        nodeMadeWhileReady=isReady();
     }
     return transformNode;
 }
 
 void Tile::dropNode()
 {
-    qDebug() << "dropping node...";
+    qDebug() << "dropping node" << coords;
     if(transformNode){
             transformNode->removeChildNode(node);//remove the node from the grid
             delete transformNode;

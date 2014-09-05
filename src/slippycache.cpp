@@ -9,6 +9,7 @@ SlippyCache::SlippyCache(SlippyProvider *provider, QObject *parent) :
     newest->next=oldest;
     oldest->previous=newest;
 
+    connect(provider, SIGNAL(tileChanged(Tile*)), this, SLOT(onTileReady(Tile*)));
 
     capacity=500;
 }
@@ -22,6 +23,11 @@ SlippyCache::~SlippyCache()
 Tile *SlippyCache::getTile(int x, int y, int zoom )
 {
     return SlippyCache::getTile(SlippyCoordinates(zoom,x,y));
+}
+
+void SlippyCache::onTileReady(Tile *tile)
+{
+    emit tileReady(tile);
 }
 
 Tile *SlippyCache::getTile(const SlippyCoordinates coords)

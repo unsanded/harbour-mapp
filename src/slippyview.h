@@ -2,14 +2,15 @@
 #define SLIPPYVIEW_H
 
 #include <QQuickItem>
+#include <QStack>
 
 #include <src/slippycache.h>
 #include <src/providers/osmprovider.h>
 
 
 
-#define HTILEBUFFER (3)
-#define VTILEBUFFER (3)
+#define HTILEBUFFER (5)
+#define VTILEBUFFER (5)
 
 class SlippyView : public QQuickItem
 {
@@ -42,7 +43,8 @@ protected:
     struct {
         bool matrixChanged;
         bool gridChanged;
-        bool tileChanged;//TODO
+        bool tileChanged;
+    QStack<Tile*> changedTiles;
     } changes;
 
     Tile* drawnTiles[HTILEBUFFER][VTILEBUFFER];
@@ -60,6 +62,7 @@ signals:
 
 public slots:
 
+    void onTileReady(Tile* tile);
 
     // QQuickItem interface
 protected:
