@@ -32,7 +32,7 @@ void SlippyCache::onTileReady(Tile *tile)
 
 Tile *SlippyCache::getTile(const SlippyCoordinates coords)
 {
-    qDebug() << "getting tile " << coords;
+//    qDebug() << "getting tile " << coords;
     QMutexLocker l(&mutex);
     Tile* retval;
     if(ramCache.contains(coords)){

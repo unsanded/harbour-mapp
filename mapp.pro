@@ -18,7 +18,11 @@ CONFIG+=qml_debug
 
 CONFIG+=C++11
 
-QSG_VISUALIZE=clip
+
+debug{
+    DEFINES+=_DEBUG
+
+}
 
 QT += gui
 
