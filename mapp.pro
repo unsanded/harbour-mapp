@@ -24,7 +24,7 @@ debug{
 
 }
 
-QT += gui
+QT += gui positioning
 
 SOURCES += \
     src/slippyprovider.cpp \
@@ -34,7 +34,8 @@ SOURCES += \
     src/providers/osmprovider.cpp \
     src/slippymap.cpp \
     src/mapp.cpp \
-    src/slippyview.cpp
+    src/slippyview.cpp \
+    src/providers/googlemapsprovider.cpp
 
 OTHER_FILES += \
     qml/cover/CoverPage.qml \
@@ -62,5 +63,6 @@ HEADERS += \
     src/gps/point.h \
     src/providers/osmprovider.h \
     src/slippymap.h \
-    src/slippyview.h
+    src/slippyview.h \
+    src/providers/googlemapsprovider.h
 

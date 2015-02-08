@@ -44,10 +44,25 @@ Page {
                 title: "MapView testarea"
             }
 
+            Slider{
+                id: zoomSlider
+                maximumValue: 17;
+                minimumValue: 1;
+                stepSize: 0.1;
+                value: mapview.zoom
+
+                anchors.top:header.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                valueText: value
+            }
+
             SlippyView{
                 id:mapview
 
+                zoom: zoomSlider.value
                 anchors.bottom: parent.bottom
+                anchors.top: zoomSlider.bottom
                 width: page.width
                 height: page.height-header.height
             }
