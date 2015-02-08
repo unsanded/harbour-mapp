@@ -31,41 +31,91 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Slippy 1.0
+import QtPositioning 5.0
 
 Page {
-    id: page
-    allowedOrientations: Orientation.All
+    id: root
 
-        anchors.fill: parent
+        PageHeader{
+            id:header
+            title: "MapView testarea"
+        }
 
+        Column{
+            anchors.top: header.bottom
+            anchors.bottom: parent.bottom
+            width: parent.width
+            spacing: Theme.paddingLarge
 
-            PageHeader{
-                id:header
-                title: "MapView testarea"
+            Row{
+                width: parent.width
+
+                Button{
+                    text: "Osm"
+                }
+                Button{
+                    text: "gmap"
+                }
+
+                IconButton {
+                    id: gpsButton
+                    width: icon.width
+                    height: parent.height
+                    icon.source: "image://theme/icon-m-gps"
+
+                    onClicked: {
+                        positionSource.start();
+                        console.log("Started Gps")
+                    }
+                }
             }
 
-            Slider{
-                id: zoomSlider
-                maximumValue: 17;
-                minimumValue: 1;
-                stepSize: 0.1;
-                value: mapview.zoom
+            Row{
 
-                anchors.top:header.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                valueText: value
+                width: parent.width
+
+                SlippyView{
+
+                    height: parent.height
+                    width:parent.width
+                    id:mapview
+                    zoom: zoomSlider.value
+
+
+                    OsmProvider{
+                        id: osm
+                    }
+
+                    GoogleMapsProvider{
+                        id: gmaps
+                    }
+                }
+            }
+        }
+
+        //stole this bit from fahrpan
+    PositionSource {
+        id: positionSource
+        active: false
+
+        onPositionChanged: {
+
+            //Only do something if active
+            if (positionSource.active === false) {
+                return;
             }
 
-            SlippyView{
-                id:mapview
+            if (positionSource.position.latitudeValid && positionSource.position.longitudeValid) {
+                console.log(qsTr("Searching for stations..."));
+                positionSource.stop();
+                mapview.setlocation(positionSource.position)
+                console.log("set Location")
 
-                zoom: zoomSlider.value
-                anchors.bottom: parent.bottom
-                anchors.top: zoomSlider.bottom
-                width: page.width
-                height: page.height-header.height
+            } else {
+                console.log(qsTr("Waiting for GPS lock..."));
             }
+        }
+    }
 }
 
 

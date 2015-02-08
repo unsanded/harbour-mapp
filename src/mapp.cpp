@@ -28,15 +28,34 @@
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-import QtQuick 2.0
-import Sailfish.Silica 1.0
-import "pages"
 
-ApplicationWindow
+#ifdef QT_QML_DEBUG
+#include <QtQuick>
+#endif
+
+#include "slippyview.h"
+#include "tilemanager.h"
+#include <QGeoCoordinate>
+#include "providers/googlemapsprovider.h"
+#include <sailfishapp.h>
+
+
+
+int main(int argc, char *argv[])
 {
-    allowedOrientations: Orientations.All
-    initialPage: Component { SecondPage{ } }
-    cover: Qt.resolvedUrl("cover/CoverPage.qml")
-}
+    // SailfishApp::main() will display "qml/template.qml", if you need more
+    // control over initialization, you can use:
+    //
+    //   - SailfishApp::application(int, char *[]) to get the QGuiApplication *
+    //   - SailfishApp::createView() to get a new QQuickView * instance
+    //   - SailfishApp::pathTo(QString) to get a QUrl to a resource file
+    //
+    // To display the view, call "show()" (will show fullscreen on device).
 
+    qmlRegisterType<SlippyView>        ("Slippy", 1, 0, "SlippyView");
+    qmlRegisterType<OsmProvider>		  ("Slippy", 1,0, "OsmProvider");
+    qmlRegisterType<GoogleMapsProvider>("Slippy", 1,0, "GoogleMapsProvider");
+    qmlRegisterType<TileManager>       ("Slippy", 1,0, "TileManager");
+    return SailfishApp::main(argc, argv);
+}
 
