@@ -48,11 +48,16 @@ void SlippyProvider::componentComplete()
     }
 
     QQuickItem* parentitem = parentItem();
+    qDebug() << "Parent: " << parentitem;
     if(parentitem){
-        SlippyView* view=qobject_cast<SlippyView*>(parentitem);
-        if(view){
+        TileManager* manager=qobject_cast<TileManager*>(parentitem);
+        if(manager){
+            /*so our parent is a TileManager.
+             * which means that this provider is created from within a TileManager{} block
+             * */
+
             qDebug() << "Found parent; registering provider " << getPrettyName();
-            view->addLayer(this);
+            manager->addLayer(this);
         }
     }
 }

@@ -12,10 +12,10 @@ Tile *FolderStore::getTile(QString layerName, SlippyCoordinates &coords)
     QString path = QString("%1/%2/%3/%3/%5").arg(m_path).arg(layerName).arg(coords.zoom()).arg(coords.x()).arg(coords.y());
 
     QFile file(path);
-    if(!file.exists()) return;
+    if(!file.exists()) return 0;
 
     Tile* tile=new Tile(coords, this);
-    tile->image=QImage(path);
-    tile->m_ready=true;
+    tile->setimage(QImage(path));
+    return tile;
 
 }

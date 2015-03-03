@@ -52,9 +52,15 @@ Page {
 
                 Button{
                     text: "Osm"
+                    onClicked: {
+                        manager.selectLayer(1)
+                    }
                 }
                 Button{
                     text: "gmap"
+                    onClicked: {
+                        manager.selectLayer(0)
+                    }
                 }
 
                 IconButton {
@@ -73,21 +79,22 @@ Page {
             Row{
 
                 width: parent.width
+                anchors.fill: parent
+                z: -5
 
                 SlippyView{
-
                     height: parent.height
                     width:parent.width
                     id:mapview
                     zoom: zoomSlider.value
+                    TileManager{
+                        id: manager
+                        OsmProvider{
 
+                        }
+                        GoogleMapsProvider{
 
-                    OsmProvider{
-                        id: osm
-                    }
-
-                    GoogleMapsProvider{
-                        id: gmaps
+                        }
                     }
                 }
             }

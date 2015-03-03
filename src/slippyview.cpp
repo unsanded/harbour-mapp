@@ -13,7 +13,7 @@ SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
     QQuickItem(parent),
     currentLocation(4,3,3),
     cache(cache),
-    tilemanager(0)
+    m_tileManager(0)
 {
     nodes.scrollTransform=0;
     matrices.zoomFromLevel=1;
@@ -24,12 +24,6 @@ SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
     setFlag(ItemHasContents);
     setFlag(ItemAcceptsInputMethod);
 
-    //we fill the grid here, and from now on, it will always be full of tiles
-    for(int i=     0       ; i< HTILEBUFFER  ; i++)
-    for(int j=     0       ; j< VTILEBUFFER  ; j++)
-    {
-        drawnTiles[i][j]=tileManager()->getTile(currentLocation.tilePos().x()+i,currentLocation.tilePos().y()+j, currentLocation.zoom());
-    }
 }
 
 void SlippyView::stepTile(int dx, int dy)
@@ -467,10 +461,17 @@ void SlippyView::componentComplete()
     qDebug() << "Width: " << width();
     qDebug() << "height: " << height();
 
-    if(!tilemanager){
-        tilemanager=TileManager::getDefault();;
+    if(!tileManager()){
+        settileManager(TileManager::getDefault());
     }
 
+    //we fill the grid here, and from now on, it will always be full of tiles
+    for(int i=     0       ; i< HTILEBUFFER  ; i++)
+    for(int j=     0       ; j< VTILEBUFFER  ; j++)
+    {
+        drawnTiles[i][j]=tileManager()->getTile(currentLocation.tilePos().x()+i,currentLocation.tilePos().y()+j, currentLocation.zoom());
+    }
+}
 
 QGeoCoordinate SlippyView::location()
 {
@@ -482,10 +483,6 @@ qreal SlippyView::mapRotation() const
     return matrices.rotation;
 }
 
-void SlippyView::addLayer(SlippyProvider *layer){
-    SlippyCache* newCache=new SlippyCache(layer);
-    layers.caches.insert(layer->name(), newCache);
-}
 
 void SlippyView::selectLayer(QString name)
 {

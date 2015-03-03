@@ -16,9 +16,6 @@
 class SlippyTileStore : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QString layerName READ layerName WRITE setlayerName NOTIFY layerNameChanged)
-
-    QString m_layerName;
 
 public:
 
@@ -37,15 +34,10 @@ public:
      * @return
      */
     virtual Tile* getTile(const SlippyCoordinates& coords )=0;
-    virtual void StoreTile(Tile* tile)=0;
+    virtual void StoreTile(Tile* tile, QString layer)=0;
 
     virtual QString getPrettyName()=0;
 
-
-QString layerName() const
-{
-    return m_layerName;
-}
 
 signals:
 
@@ -53,13 +45,6 @@ void layerNameChanged(QString arg);
 
 public slots:
 
-void setlayerName(QString arg)
-{
-    if (m_layerName != arg) {
-        m_layerName = arg;
-        emit layerNameChanged(arg);
-    }
-}
 };
 
 #endif // SLIPPYTILESTORE_H

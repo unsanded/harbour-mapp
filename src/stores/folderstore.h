@@ -35,7 +35,9 @@ void setPath(QString arg)
 public:
 Tile *getTile(QString layerName, SlippyCoordinates &coords);
 void StoreTile(Tile *tile);
-QString getPrettyName();
+QString getPrettyName(){
+    return "file storage";
+}
 };
 
 #endif // FOLDERSTORE_H

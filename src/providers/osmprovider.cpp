@@ -26,7 +26,7 @@ void OsmTile::receiveData()
     }
     QByteArray data( reply->readAll());
 
-    if(image.loadFromData(data)){
+    if(m_image.loadFromData(data)){
         m_ready=true;
         emit ready(this);
     }else{

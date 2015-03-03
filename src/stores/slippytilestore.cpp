@@ -1,8 +1,7 @@
 #include "slippytilestore.h"
 
 SlippyTileStore::SlippyTileStore(QObject *parent) :
-    QObject(parent),
-    m_layerName(layerName)
+    QObject(parent)
 {
 
 }

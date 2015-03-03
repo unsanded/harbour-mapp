@@ -14,14 +14,14 @@ TARGET = mapp
 
 CONFIG += sailfishapp
 
-CONFIG+=qml_debug
 
 CONFIG+=C++11
 
 
 debug{
+    CONFIG+=declarative_debug
+    CONFIG+=qml_debug
     DEFINES+=_DEBUG
-
 }
 
 QT += gui positioning
@@ -30,12 +30,14 @@ SOURCES += \
     src/slippyprovider.cpp \
     src/tile.cpp \
     src/slippycache.cpp \
-    src/gps/point.cpp \
     src/providers/osmprovider.cpp \
-    src/slippymap.cpp \
     src/mapp.cpp \
     src/slippyview.cpp \
-    src/providers/googlemapsprovider.cpp
+    src/providers/googlemapsprovider.cpp \
+    src/drawable.cpp \
+    src/stores/slippytilestore.cpp \
+    src/stores/folderstore.cpp \
+    src/tilemanager.cpp
 
 OTHER_FILES += \
     qml/cover/CoverPage.qml \
@@ -49,7 +51,8 @@ OTHER_FILES += \
     qml/mapp.qml \
     qml/pages/Menu.qml \
     qml/pages/ThirdPage.qml \
-    qml/pages/FourthPage.qml
+    qml/pages/FourthPage.qml \
+    mapp.png
 
 # to disable building translations every time, comment out the
 # following CONFIG line
@@ -60,9 +63,11 @@ HEADERS += \
     src/slippyprovider.h \
     src/tile.h \
     src/slippycache.h \
-    src/gps/point.h \
     src/providers/osmprovider.h \
-    src/slippymap.h \
     src/slippyview.h \
-    src/providers/googlemapsprovider.h
+    src/providers/googlemapsprovider.h \
+    src/drawable.h \
+    src/stores/slippytilestore.h \
+    src/stores/folderstore.h \
+    src/tilemanager.h
 

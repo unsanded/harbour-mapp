@@ -6,10 +6,10 @@
 
 QSGNode *Tile::makeNode(QQuickWindow* window)
 {
-    if(node && !nodeMadeWhileReady && isReady()){
+    if(node && !nodeMadeWhileReady && ready()){
         //drop the texture that was made while we were not ready
         delete texture;
-        texture=window->createTextureFromImage(image);
+        texture=window->createTextureFromImage(m_image);
         ((QSGSimpleTextureNode*)node)->setTexture(texture);
 
         node->markDirty(QSGNode::DirtyMaterial);
@@ -21,8 +21,8 @@ QSGNode *Tile::makeNode(QQuickWindow* window)
         node=new QSGSimpleTextureNode;
         transformNode=new QSGTransformNode;
 
-        nodeMadeWhileReady=isReady();
-        texture=window->createTextureFromImage(image);
+        nodeMadeWhileReady=ready();
+        texture=window->createTextureFromImage(m_image);
         ((QSGSimpleTextureNode*)node)->setTexture(texture);
         ((QSGSimpleTextureNode*)node)->setRect(0,0,256,256);
         node->markDirty(QSGNode::DirtyMaterial);
@@ -53,7 +53,7 @@ void Tile::dropNode()
 Tile::Tile(SlippyCoordinates coordinates, QObject *parent) :
     QObject(parent),
     coords(coordinates),
-    image(256, 256, QImage::Format_ARGB32)
+    m_image(256, 256, QImage::Format_ARGB32)
 {
     nodeMadeWhileReady=false;
     node=0;
@@ -63,10 +63,10 @@ Tile::Tile(SlippyCoordinates coordinates, QObject *parent) :
     next=0;
     previous=0;
     m_ready=false;
-    image.fill(QColor(100,100,200,200));
+    m_image.fill(QColor(100,100,200,200));
     //just to test
     QPainter p;
-    p.begin(&image);
+    p.begin(&m_image);
     p.setPen(Qt::green);
 
     p.drawArc(0,0,256,256,0,270*16);

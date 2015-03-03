@@ -2,6 +2,7 @@
 #define TILEMANAGER_H
 
 #include <QObject>
+#include <QQuickItem>
 #include "tile.h"
 #include "slippyprovider.h"
 
@@ -12,7 +13,7 @@ struct Layer{
 };
 
 
-class TileManager : public QObject
+class TileManager : public QQuickItem
 {
     Q_OBJECT
     int activeLayerIndex;
@@ -26,9 +27,10 @@ class TileManager : public QObject
     QVector<SlippyTileStore*> stores;
 
 public:
-    explicit TileManager(QObject *parent = 0);
+    explicit TileManager(QQuickItem *parent = 0);
     ~TileManager();
-    Tile* getTile(SlippyCoordinates& coordinates const);
+    virtual Tile* getTile(SlippyCoordinates coordinates );
+    virtual Tile* getTile( int x, int y, int zoom );
 
     Layer activeLayer();
 
@@ -39,10 +41,10 @@ public:
      * @brief getDefault to get the application-global tile-manager
      * @return
      */
-    TileManager *getDefault();
+    static TileManager *getDefault();
 
 signals:
-    activeLayerChanged( int index );
+    void activeLayerChanged( int index );
 
 
 public slots:
@@ -50,6 +52,15 @@ public slots:
     void selectLayer(int index);
     void selectLayer(QString name);
 
+
+    // QQmlParserStatus interface
+public:
+    void classBegin(){
+        QQuickItem::classBegin();
+    }
+    void componentComplete(){
+        QQuickItem::componentComplete();
+    }
 };
 
 #endif // TILEMANAGER_H

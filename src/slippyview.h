@@ -104,7 +104,7 @@ protected:
     //update the transformation matrix from the movement rotation and zoom variables.
     void updateCompleteMatrix(bool update=true);
 
-
+    
 
 
 signals:
@@ -162,7 +162,6 @@ qreal zoom() const
 QGeoCoordinate location() ;
 qreal mapRotation() const ;
 
-void addLayer(SlippyProvider* layer);
 void selectLayer(QString name);
 
 
