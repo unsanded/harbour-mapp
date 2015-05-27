@@ -32,7 +32,6 @@ void SlippyCache::onTileReady(Tile *tile)
 
 Tile *SlippyCache::getTile(const SlippyCoordinates coords)
 {
-//    qDebug() << "getting tile " << coords;
     QMutexLocker l(&mutex);
     Tile* retval;
     if(ramCache.contains(coords)){
@@ -63,10 +62,9 @@ Tile *SlippyCache::getTile(const SlippyCoordinates coords)
         if(ramCache.size()>capacity){
             Tile* removeTile= oldest->previous;
 
-            qDebug()<< "cache full, removing tile" << removeTile->coords;
             removeTile->previous->next=oldest;
             oldest->previous=removeTile->previous;
-            qDebug() << ramCache.remove(oldest->previous->coords);
+            ramCache.remove(oldest->previous->coords);
             delete removeTile;
         }
         return retval;
@@ -81,11 +79,10 @@ void SlippyCache::deleteAllTiles(){
 
         Tile* rmTile=oldest->previous;
 
-        qDebug()<< "    removing tile" << rmTile->coords;
 
         oldest->previous=rmTile->previous;
 
-        qDebug()<< "    " << ramCache.remove(rmTile->coords);
+        ramCache.remove(rmTile->coords);
         delete rmTile;
     }
     ramCache.clear();
