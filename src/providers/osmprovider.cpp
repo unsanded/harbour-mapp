@@ -13,7 +13,6 @@ OsmTile::OsmTile(SlippyCoordinates coords, OsmProvider *parent):Tile(coords, par
 
 void OsmTile::receiveData()
 {
-    qDebug() << "ready " << coords;
     if(! reply->error()==QNetworkReply::NoError)
     {
         qWarning() << "network error: QNetworkReply errorCode: " << reply->error();

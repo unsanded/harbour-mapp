@@ -18,7 +18,8 @@ SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
     nodes.scrollTransform=0;
     matrices.zoomFromLevel=1;
 #ifndef _DEBUG
-    matrices.movementOffset=QPointF(-256,-256);
+    matrices.movementOffset=QPointF(-512,-512);
+    matrices.movementFromTile=matrices.movementOffset;
     setFlag(ItemClipsChildrenToShape);
 #endif
     setFlag(ItemHasContents);
@@ -79,8 +80,7 @@ void SlippyView::stepTile(int dx, int dy)
         {
             qDebug() << "TILE" << i << j;
             if(!moveBlockFrom.contains(i,j, false)){//The tile is not necessary anymore, so drop its node;
-                dropNodeQueue.insert(drawnTiles[i][j]);
-                qDebug() << "   drop";
+                queueForDropNode(drawnTiles[i][j]);
             }
             if(moveBlockTo.contains(i,j, false)){//we already have this tile, but somewhere else in the grid
                 drawnTiles[i][j]=drawnTiles[i-dx][j-dy];
@@ -89,11 +89,13 @@ void SlippyView::stepTile(int dx, int dy)
             else
             {
                 drawnTiles[i][j]=tileManager()->getTile(tileX+i,tileY+j, currentLocation.zoom());
+                connect(
+                            drawnTiles[i][j], SIGNAL(ready(Tile*)),
+                            this			, SLOT(onTileReady(Tile*))
+                            );
                 qDebug() << "  get";
             }
-
         }
-
     }
     else
         return reTile();
@@ -131,29 +133,36 @@ void SlippyView::reTile()
     for(i=0;i<HTILEBUFFER;i++)
     for(j=0;j<VTILEBUFFER;j++)
     {
-        dropNodeQueue.insert(drawnTiles[i][j]);
+        queueForDropNode(drawnTiles[i][j]);
         drawnTiles[i][j]=tileManager()->getTile(tileX+i,tileY+j, zoom);
     }
 
     for(i=0;i<HTILEBUFFER;i++)
     for(j=0;j<VTILEBUFFER;j++)
+    {
         dropNodeQueue.remove(drawnTiles[i][j]);
-    changes.gridChanged=true;
+            connect(
+                drawnTiles[i][j], SIGNAL(ready(Tile*)),
+                this			, SLOT(onTileReady(Tile*))
+            );
+    }
     changes.gridChanged=true;
 }
 
 void SlippyView::updateCompleteMatrix(bool upd)
 {
     changes.matrixChanged=true;
-    //if we have moved further than one tile
-    if(!(QRectF(-1*256.0,-1*256.0,2*256.0,2*256.0)).contains(matrices.movementFromTile))
+
+    //ok, so stepping is the point in tile-coordinates that has to stay withing the bounding box of 256
+    QPointF stepping(matrices.movementFromTile-matrices.movementOffset);
+    if(!(QRectF(-1*256.0,-1*256.0,2*256.0,2*256.0)).contains(stepping))
     {
         qDebug() << "stepping" << matrices.movementFromTile;
         //step alle the tiles one way
-        stepTile(matrices.movementFromTile.x()/256,  matrices.movementFromTile.y()/256);
+        stepTile(stepping.x()/256, stepping.y()/256);
 
         //move the whole grid exactly the other way
-        QPointF stepBack((int)(matrices.movementFromTile.x()/256),(int)(matrices.movementFromTile.y()/256) );
+        QPointF stepBack((int)(stepping.x()/256),(int)(stepping.y()/256) );
        stepBack*=256;
 
        //stepBack=matrices.zoom.map(stepBack);
@@ -166,7 +175,7 @@ void SlippyView::updateCompleteMatrix(bool upd)
     }
 
     matrices.move.setToIdentity();
-    QVector3D movement( matrices.movementFromTile+matrices.movementOffset);
+    QVector3D movement( matrices.movementFromTile);
 
     matrices.move.translate(movement.x(), movement.y());
 
@@ -200,9 +209,9 @@ void SlippyView::updateCompleteMatrix(bool upd)
 
     }
     matrices.zoom.setToIdentity();
-    //matrices.zoom.translate( matrices.rotationCenter.x(), matrices.rotationCenter.y(), 0);
+    matrices.zoom.translate( matrices.rotationCenter.x(), matrices.rotationCenter.y(), 0);
     matrices.zoom.scale(matrices.zoomFromLevel);
-    //matrices.zoom.translate(-matrices.rotationCenter.x(),-matrices.rotationCenter.y(), 0);
+    matrices.zoom.translate(-matrices.rotationCenter.x(),-matrices.rotationCenter.y(), 0);
 
 
 
@@ -243,8 +252,22 @@ void SlippyView::setzoom(qreal arg)
 
     if(fpart!=matrices.zoomFromLevel){
         matrices.zoomFromLevel=fpart;
+        updateCompleteMatrix();
         emit zoomChanged(arg);
     }
+
+}
+
+void SlippyView::onLayerChanged(int layerIndex)
+{
+    if(!ready())
+    {
+        m_ready=true;
+        emit readyChanged(true);
+        emit becomesReady();
+    }
+    reTile();
+    update();
 }
 
 void SlippyView::setlocation(QGeoCoordinate arg)
@@ -290,6 +313,7 @@ void SlippyView::touchEvent(QTouchEvent *event)
 {
     QPointF movementRelative ;
     QPointF pivot(event->touchPoints()[0].pos());
+    qDebug() <<"pivot "<< pivot;
 
     if(event->touchPoints().size()>=1)
     {
@@ -320,7 +344,7 @@ void SlippyView::touchEvent(QTouchEvent *event)
         );
         qreal zoomFactor = vector.length()/oldVector.length();
 
-        matrices.movementFromTile-=(pivot*(zoomFactor-1));
+        matrices.movementFromTile+=(pivot)*(zoomFactor-1);
 
         qreal angle=acos(QVector2D::dotProduct(vector.normalized(), QVector2D(1,0) ));
         if(vector.y()>0)
@@ -373,9 +397,9 @@ void SlippyView::touchEvent(QTouchEvent *event)
 
 
         matrices.zoomFromLevel*=zoomFactor;
+        //don't change the zoomlevel here. That happens in updateCompleteMatrix
         emit zoomChanged(log2(matrices.zoomFromLevel) + currentLocation.zoom());
         emit mapRotationChanged(matrices.rotation);
-
     }
 
     matrices.movementFromTile+=movementRelative;
@@ -387,20 +411,15 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data
 {
     QSGTransformNode* node;
 
+    if(!ready()) return 0;
+
     if(!oldNode)
     {
         node=new QSGTransformNode;
 
         //initialise transformation nodes for each tile;
-        for(int i=0; i<HTILEBUFFER;i++)
-        for(int j=0; j<VTILEBUFFER;j++)
-        {
-            changes.gridChanged=true;
-
-           // drawnTiles[i][j]->makeNode(window())->appendChildNode(new QSGSimpleRectNode(QRectF(10,10,110,110),QColor(Qt::red)));
-
-            node->markDirty(QSGNode::DirtyForceUpdate);
-        }
+        changes.gridChanged=true;
+        node->markDirty(QSGNode::DirtyForceUpdate);
     }
 
     else
@@ -443,8 +462,19 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data
                     n->makeNode(window());
         }
         changes.changedTiles.clear();
+
+        node->markDirty(QSGNode::DirtyMaterial);
+        qDebug() << "node changed";
     }
     return node;
+}
+
+void SlippyView::queueForDropNode(Tile *tile)
+{
+    dropNodeQueue.insert(tile);
+    disconnect(tile, SIGNAL(ready(Tile*)),
+               this, SLOT(onTileReady(Tile*))
+                );
 }
 
 void SlippyView::classBegin()
@@ -469,7 +499,7 @@ void SlippyView::componentComplete()
     for(int i=     0       ; i< HTILEBUFFER  ; i++)
     for(int j=     0       ; j< VTILEBUFFER  ; j++)
     {
-        drawnTiles[i][j]=tileManager()->getTile(currentLocation.tilePos().x()+i,currentLocation.tilePos().y()+j, currentLocation.zoom());
+        drawnTiles[i][j]=new Tile(currentLocation + QPoint(i,j));
     }
 }
 
@@ -478,21 +508,13 @@ QGeoCoordinate SlippyView::location()
     return currentLocation;
 }
 
-qreal SlippyView::mapRotation() const
+ereal SlippyView::mapRotation() const
+rder\
+
 {
     return matrices.rotation;
 }
 
-
-void SlippyView::selectLayer(QString name)
-{
-    if(layers.caches.contains(name))
-    {
-        cache=layers.caches[name];
-        reTile();
-        update();
-    }
-}
 
 
 

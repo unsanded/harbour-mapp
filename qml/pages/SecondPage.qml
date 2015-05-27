@@ -36,6 +36,17 @@ import QtPositioning 5.0
 Page {
     id: root
 
+    TileManager{
+        id: manager
+        OsmProvider{
+
+        }
+        GoogleMapsProvider{
+
+        }
+    }
+    //proberpty bool dualView: dualCheck.checked
+
         PageHeader{
             id:header
             title: "MapView testarea"
@@ -48,16 +59,22 @@ Page {
             spacing: Theme.paddingLarge
 
             Row{
+                id: controls1
                 width: parent.width
+                Switch{
+                    id:controlsVisible
+                }
 
                 Button{
                     text: "Osm"
+                    color: "red"
                     onClicked: {
                         manager.selectLayer(1)
                     }
                 }
                 Button{
                     text: "gmap"
+                    color: "red"
                     onClicked: {
                         manager.selectLayer(0)
                     }
@@ -75,30 +92,42 @@ Page {
                     }
                 }
             }
-
             Row{
-
+                visible: controlsVisible.checked
                 width: parent.width
-                anchors.fill: parent
-                z: -5
-
-                SlippyView{
-                    height: parent.height
+                Slider{
                     width:parent.width
-                    id:mapview
-                    zoom: zoomSlider.value
-                    TileManager{
-                        id: manager
-                        OsmProvider{
-
-                        }
-                        GoogleMapsProvider{
-
-                        }
-                    }
+                    id: zoomSlider
+                    minimumValue: 4
+                    maximumValue: 10
+                    stepSize: 0.1
                 }
             }
+            Row{
+                visible: controlsVisible.checked
+                width: parent.width
+                Slider{
+                    width:parent.width
+                    id: rotationSlider
+                    maximumValue: 6
+                    stepSize: 0.1
+                }
+            }
+
         }
+
+
+
+
+        SlippyView{
+            tileManager: manager
+            anchors.fill: parent
+            z: -5
+            id:mapview
+            zoom: zoomSlider.value
+            mapRotation: rotationSlider.value
+        }
+
 
         //stole this bit from fahrpan
     PositionSource {
