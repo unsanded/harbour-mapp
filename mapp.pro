@@ -37,7 +37,8 @@ SOURCES += \
     src/drawable.cpp \
     src/stores/slippytilestore.cpp \
     src/stores/folderstore.cpp \
-    src/tilemanager.cpp
+    src/tilemanager.cpp \
+    src/slippycoordinates.cpp
 
 OTHER_FILES += \
     qml/cover/CoverPage.qml \
@@ -69,5 +70,6 @@ HEADERS += \
     src/drawable.h \
     src/stores/slippytilestore.h \
     src/stores/folderstore.h \
-    src/tilemanager.h
+    src/tilemanager.h \
+    src/slippycoordinates.h
 
