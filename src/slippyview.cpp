@@ -13,7 +13,8 @@ SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
     QQuickItem(parent),
     currentLocation(4,3,3),
     cache(cache),
-    m_tileManager(0)
+    m_tileManager(0),
+    m_ready(false)
 {
     nodes.scrollTransform=0;
     matrices.zoomFromLevel=1;
@@ -111,7 +112,6 @@ void SlippyView::stepTile(int dx, int dy)
             qDebug() << "  tile is   " << drawnTiles[i][j]->coords;
             qDebug() << "  should be " << SlippyCoordinates(zoom,tileX+i, tileY+j);
         }
-
     }
 #endif
 
@@ -125,6 +125,7 @@ void SlippyView::stepTile(int dx, int dy)
 
 void SlippyView::reTile()
 {
+    qDebug() << "retiling";
     int i, j;
     int tileX = currentLocation.tilePos().x();
     int tileY = currentLocation.tilePos().y();
@@ -135,6 +136,7 @@ void SlippyView::reTile()
     {
         queueForDropNode(drawnTiles[i][j]);
         drawnTiles[i][j]=tileManager()->getTile(tileX+i,tileY+j, zoom);
+        changes.changedTiles.append(drawnTiles[i][j]);
     }
 
     for(i=0;i<HTILEBUFFER;i++)
@@ -145,8 +147,10 @@ void SlippyView::reTile()
                 drawnTiles[i][j], SIGNAL(ready(Tile*)),
                 this			, SLOT(onTileReady(Tile*))
             );
+
     }
     changes.gridChanged=true;
+    changes.tileChanged=true;
 }
 
 void SlippyView::updateCompleteMatrix(bool upd)
@@ -157,12 +161,13 @@ void SlippyView::updateCompleteMatrix(bool upd)
     QPointF stepping(matrices.movementFromTile-matrices.movementOffset);
     if(!(QRectF(-1*256.0,-1*256.0,2*256.0,2*256.0)).contains(stepping))
     {
-        qDebug() << "stepping" << matrices.movementFromTile;
-        //step alle the tiles one way
+       qDebug() << "stepping" << matrices.movementFromTile;
+       //step alle the tiles one way
+       if(ready())
         stepTile(stepping.x()/256, stepping.y()/256);
 
-        //move the whole grid exactly the other way
-        QPointF stepBack((int)(stepping.x()/256),(int)(stepping.y()/256) );
+       //move the whole grid exactly the other way
+       QPointF stepBack((int)(stepping.x()/256),(int)(stepping.y()/256) );
        stepBack*=256;
 
        //stepBack=matrices.zoom.map(stepBack);
@@ -178,6 +183,7 @@ void SlippyView::updateCompleteMatrix(bool upd)
     QVector3D movement( matrices.movementFromTile);
 
     matrices.move.translate(movement.x(), movement.y());
+    
 
     if(matrices.zoomFromLevel<0.5)
     {
@@ -192,6 +198,7 @@ void SlippyView::updateCompleteMatrix(bool upd)
         currentLocation.moveByPixels(-QPointF(128*halfWayX, 128*halfWayY));
 
         matrices.zoomFromLevel*=2;
+        matrices.movementFromTile/=2;
         reTile();
     }
     if(matrices.zoomFromLevel>2)
@@ -202,6 +209,7 @@ void SlippyView::updateCompleteMatrix(bool upd)
 
         currentLocation.setzoom(currentLocation.zoom()+1);
         matrices.zoomFromLevel/=2;
+        matrices.movementFromTile*=2;
         currentLocation.settilePos(currentLocation.tilePos()+QPoint(halfWayX, halfWayY));
 
         reTile();
@@ -222,9 +230,10 @@ void SlippyView::updateCompleteMatrix(bool upd)
     matrices.rotate.rotate(matrices.rotation*180.0/M_PI, 0,0,1);
     matrices.rotate.translate(-matrices.rotationCenter.x(),-matrices.rotationCenter.y(), 0);
 
+    //this is the final matrix from tile to screen
     matrices.complete=matrices.rotate*matrices.zoom*matrices.move;
 
-    if(upd) update();
+    if(upd && ready()) update();
     //update here, because the following stuff is all gui-thread, instead of graphics
 
     matrices.inverses.zoomAndRotate=(matrices.zoom*matrices.rotate).inverted();
@@ -242,19 +251,10 @@ void SlippyView::onTileReady(Tile *tile)
 
 void SlippyView::setzoom(qreal arg)
 {
-    int intPart=arg;
-    qreal fpart=pow(2, arg-intPart);
-    if(intPart!=currentLocation.zoom())
-    {
-        currentLocation.setzoom(intPart);
-        emit zoomLevelChanged(intPart);
-    }
+    matrices.zoomFromLevel = pow(2, arg-currentLocation.zoom());
+    if(ready())
+       updateCompleteMatrix(true);
 
-    if(fpart!=matrices.zoomFromLevel){
-        matrices.zoomFromLevel=fpart;
-        updateCompleteMatrix();
-        emit zoomChanged(arg);
-    }
 
 }
 
@@ -262,6 +262,7 @@ void SlippyView::onLayerChanged(int layerIndex)
 {
     if(!ready())
     {
+        qDebug() << "Map becomes ready";
         m_ready=true;
         emit readyChanged(true);
         emit becomesReady();
@@ -274,9 +275,13 @@ void SlippyView::setlocation(QGeoCoordinate arg)
 {
     SlippyCoordinates nw(arg, currentLocation.zoom());
 
+    if(!nw.valid())return;
+
     if(nw.MercatorPos()!=currentLocation.MercatorPos())
     {
         currentLocation=nw;
+        matrices.movementFromTile=nw.tileOffset()*TILE_SIZE;
+        reTile();
         updateCompleteMatrix();
         emit locationChanged(arg);
     }
@@ -330,8 +335,6 @@ void SlippyView::touchEvent(QTouchEvent *event)
 
             movementRelative *=2;
 
-            if(event->touchPoints().size()==1)
-                updateCompleteMatrix();
     }
     if(event->touchPoints().size()==2){
         QVector2D oldVector(
@@ -344,65 +347,69 @@ void SlippyView::touchEvent(QTouchEvent *event)
         );
         qreal zoomFactor = vector.length()/oldVector.length();
 
-        matrices.movementFromTile+=(pivot)*(zoomFactor-1);
+        matrices.movementFromTile += matrices.inverses.zoomAndRotate.map(pivot + matrices.movementFromTile)*(1-zoomFactor);
 
         qreal angle=acos(QVector2D::dotProduct(vector.normalized(), QVector2D(1,0) ));
         if(vector.y()>0)
             angle=-angle;
         qreal oldAngle=acos(QVector2D::dotProduct(oldVector.normalized(), QVector2D(1,0) ));
         if(oldVector.y()>0)
-            oldAngle=-oldAngle;
+            oldAngle = -oldAngle;
 
 
-        angle-=oldAngle;
+        angle -= oldAngle;
 
-        matrices.rotation-=angle;
+        matrices.rotation -= angle;
 
 
         //make sure we rotate about a finger instead of the Just the center
 
-        //pivot is now the vector around wich to compensate rotation
-
-        //pivot should be in the tile vector-space for this
-//        pivot-=matrices.rotationCenter;
-        pivot=matrices.inverses.zoomAndRotate.map(pivot);
-        pivot-=matrices.inverses.zoomAndRotate.map(matrices.rotationCenter);
+        //pivot is now the vector around wich to rotate
 
 
+        if(!lockRotation())
+        {
 
-
-        QMatrix4x4 rotationRelative;
-        //rotationRelative.translate( matrices.rotationCenter.x(), matrices.rotationCenter.y(), 0);
-        rotationRelative.rotate(angle*180.0/M_PI, 0,0,1);
-        //rotationRelative.translate(-matrices.rotationCenter.x(),-matrices.rotationCenter.y(), 0);
-
-
-
-        QPointF rotationCorrection(pivot);
-        rotationCorrection=rotationRelative.map(rotationCorrection);
-        rotationCorrection-=pivot;
+            pivot-=matrices.inverses.zoomAndRotate.map(matrices.rotationCenter);
+            pivot=matrices.inverses.zoomAndRotate.map(pivot);
 
 
 
 
-
-        qDebug()<< "PIVOT" << pivot;
-        qDebug()<< "rotationCorrection" << rotationCorrection;
-
-
-        movementRelative+=rotationCorrection;
+            QMatrix4x4 rotationRelative;
+            //rotationRelative.translate( matrices.rotationCenter.x(), matrices.rotationCenter.y(), 0);
+            rotationRelative.rotate(angle*180.0/M_PI, 0,0,1);
+            //rotationRelative.translate(-matrices.rotationCenter.x(),-matrices.rotationCenter.y(), 0);
 
 
-        qDebug() << "rotating by " << angle << " to " << matrices.rotation;
+
+            QPointF rotationCorrection(pivot);
+            rotationCorrection=rotationRelative.map(rotationCorrection);
+            rotationCorrection-=pivot;
 
 
-        matrices.zoomFromLevel*=zoomFactor;
-        //don't change the zoomlevel here. That happens in updateCompleteMatrix
-        emit zoomChanged(log2(matrices.zoomFromLevel) + currentLocation.zoom());
-        emit mapRotationChanged(matrices.rotation);
+
+
+
+            qDebug()<< "PIVOT" << pivot;
+            qDebug()<< "rotationCorrection" << rotationCorrection;
+
+            movementRelative+=rotationCorrection;
+            qDebug() << "rotating by " << angle << " to " << matrices.rotation;
+        }
+
+
+        if(!lockZoom())
+        {
+            matrices.zoomFromLevel*=zoomFactor;
+            //don't change the zoomlevel here. That happens in updateCompleteMatrix
+            emit zoomChanged(log2(matrices.zoomFromLevel) + currentLocation.zoom());
+        }
+        if(!lockRotation())
+            emit mapRotationChanged(matrices.rotation);
     }
 
-    matrices.movementFromTile+=movementRelative;
+    matrices.movementFromTile += movementRelative;
     updateCompleteMatrix();
 }
 
@@ -508,9 +515,7 @@ QGeoCoordinate SlippyView::location()
     return currentLocation;
 }
 
-ereal SlippyView::mapRotation() const
-rder\
-
+qreal SlippyView::mapRotation() const
 {
     return matrices.rotation;
 }

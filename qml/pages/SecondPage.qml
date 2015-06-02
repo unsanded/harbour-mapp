@@ -75,20 +75,9 @@ Page {
                 Button{
                     text: "gmap"
                     color: "red"
+
                     onClicked: {
                         manager.selectLayer(0)
-                    }
-                }
-
-                IconButton {
-                    id: gpsButton
-                    width: icon.width
-                    height: parent.height
-                    icon.source: "image://theme/icon-m-gps"
-
-                    onClicked: {
-                        positionSource.start();
-                        console.log("Started Gps")
                     }
                 }
             }
@@ -98,8 +87,9 @@ Page {
                 Slider{
                     width:parent.width
                     id: zoomSlider
+                    value: 4
                     minimumValue: 4
-                    maximumValue: 10
+                    maximumValue: 18
                     stepSize: 0.1
                 }
             }
@@ -107,13 +97,24 @@ Page {
                 visible: controlsVisible.checked
                 width: parent.width
                 Slider{
-                    width:parent.width
+                    width:parent.width - gpsButton.width
                     id: rotationSlider
                     maximumValue: 6
                     stepSize: 0.1
                 }
-            }
+                IconButton {
+                    id: gpsButton
+                    width: icon.width
+                    height: parent.height
+                    icon.source: "image://theme/icon-m-gps"
 
+
+                    onClicked: {
+                        positionSource.start();
+                        console.log("Started Gps")
+                    }
+                }
+            }
         }
 
 
@@ -126,6 +127,9 @@ Page {
             id:mapview
             zoom: zoomSlider.value
             mapRotation: rotationSlider.value
+
+            lockRotation: true;
+            lockZoom:  false;
         }
 
 
@@ -142,9 +146,9 @@ Page {
             }
 
             if (positionSource.position.latitudeValid && positionSource.position.longitudeValid) {
-                console.log(qsTr("Searching for stations..."));
-                positionSource.stop();
-                mapview.setlocation(positionSource.position)
+                console.log(qsTr("found position..."));
+                mapview.setlocation(positionSource.position.coordinate)
+                console.log("timestamp" + positionSource.position.timestamp)
                 console.log("set Location")
 
             } else {

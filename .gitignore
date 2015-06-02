@@ -1,3 +1,5 @@
+#vim 
+*.swp
 # C++ objects and libs
 
 *.slo

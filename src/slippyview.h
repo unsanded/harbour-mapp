@@ -67,6 +67,11 @@ protected:
     //not in nodes, because this is allowed to be used outside of updatePaintnode
     QSet<Tile*> dropNodeQueue;
 
+    /**
+     * @brief The matrices struct holds all the matrices used to transform tiles to screen.
+     * All the tiles are mapped through matrices.complete, which is built up from a move, zoom and rotate component.
+     * The transformation is in that order, so all tiles are moved first, then scaled and then rotated.
+     */
     struct {
         QPointF movementOffset;//offset so that the edge of the grid stays off the screen
 
@@ -208,6 +213,11 @@ TileManager* tileManager() const
 {
     return m_tileManager;
 }
+
+/**
+ * @brief ready means that the view has a tile-source, and is ready to draw.
+ * @return whether the view is ready;
+ */
 bool ready() const
 {
     return m_ready;

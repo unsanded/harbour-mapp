@@ -16,6 +16,7 @@ struct SlippyCoordinates: public QObject {
     Q_PROPERTY(int y READ y WRITE sety NOTIFY yChanged)
     Q_PROPERTY(int zoom READ zoom WRITE setzoom NOTIFY zoomChanged)
     Q_PROPERTY(QPointF MercatorPos READ MercatorPos WRITE setMercatorPos NOTIFY MercatorPosChanged)
+    Q_PROPERTY(bool valid READ valid WRITE setValid NOTIFY validChanged)
 
 
 
@@ -115,6 +116,11 @@ public:
 
     }
 
+    bool valid() const
+    {
+        return m_valid;
+    }
+
 public slots:
     void moveByPixels(QPointF offset){
         settileOffset(tileOffset() + offset/TILE_SIZE);
@@ -124,7 +130,13 @@ public slots:
     void settilePos(QPoint arg)
     {
         if (m_tilePos != arg) {
+
             m_tilePos=arg;
+            if(tilePos().x()<0 || tilePos().y()<0 ||
+               tilePos().x()>=pow(2,zoom()) || tilePos().y()>=pow(2, zoom()))
+            {
+                setValid(true);
+            }
             updateMercatorFromTiles();
             emit tilePosChanged(arg);
         }
@@ -164,6 +176,11 @@ public slots:
     void setMercatorPos(QPointF arg)
     {
         if (m_MercatorPos != arg) {
+
+            if(arg.x()<=1 && arg.y()<=1 &&
+               arg.x()>=0 && arg.y()>=0)
+                setValid(true);
+
 
             m_MercatorPos=arg;
 
@@ -211,6 +228,14 @@ public slots:
         }
     }
 
+    void setValid(bool arg)
+    {
+        if (m_valid != arg) {
+            m_valid = arg;
+            emit validChanged(arg);
+        }
+    }
+
 signals:
     void tilePosChanged(QPoint arg);
     void xChanged(int arg);
@@ -219,6 +244,8 @@ signals:
     void MercatorPosChanged(QPointF arg);
     void tileOffsetChanged(QPointF arg);
 
+
+    void validChanged(bool arg);
 
 private:
     void updateMercatorFromTiles(){
@@ -231,7 +258,8 @@ private:
     void updateTilesFromMercator(){
         int n = pow(2, zoom());
 
-        QPointF zoomedMercator=MercatorPos()*n;
+        QPointF zoomedMercator = MercatorPos()*n;
+
 
         settilePos(QPoint(zoomedMercator.x(), zoomedMercator.y()));
         settileOffset(QPointF(zoomedMercator.x()-floor(zoomedMercator.x()),
@@ -240,5 +268,6 @@ private:
 
 
     }
+    bool m_valid;
 };
 #endif // SLIPPYCOORDINATES_H

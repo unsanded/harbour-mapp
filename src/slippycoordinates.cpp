@@ -17,6 +17,14 @@ SlippyCoordinates::SlippyCoordinates(QGeoCoordinate location, int zoom, QObject 
     double latitude=location.latitude();
     double longitude=location.longitude();
 
+    qDebug() << "New Coordinates " << latitude << ", " << longitude;
+    //check for either to be NaN
+    if(latitude!=latitude || longitude!=longitude)
+    {
+        setValid(false);
+        return;
+    }
+
     double mercatorx = ((longitude + 180) / 360);
 
     double mercatory = (1.0 - (log(tan(latitude/180.0*M_PI) + sec(latitude/180.0*M_PI)) / M_PI)) / 2.0;
@@ -39,6 +47,7 @@ int SlippyCoordinates::zoom() const
 SlippyCoordinates SlippyCoordinates::operator+(QPoint offset)
 {
     SlippyCoordinates res(zoom(), x(), y());
+
     res.settilePos(res.tilePos()+ offset);
     return res;
 }
