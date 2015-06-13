@@ -85,12 +85,15 @@ Page {
                 visible: controlsVisible.checked
                 width: parent.width
                 Slider{
-                    width:parent.width
+                    width:parent.width - rotateSwitch.width
                     id: zoomSlider
                     value: 4
                     minimumValue: 4
                     maximumValue: 18
                     stepSize: 0.1
+                }
+                Switch{
+                    id: rotateSwitch
                 }
             }
             Row{
@@ -128,8 +131,8 @@ Page {
             zoom: zoomSlider.value
             mapRotation: rotationSlider.value
 
-            lockRotation: true;
-            lockZoom:  false;
+            lockRotation: rotateSwitch.checked;
+            lockZoom:  !rotateSwitch.checked;
         }
 
 

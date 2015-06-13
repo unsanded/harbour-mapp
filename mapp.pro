@@ -18,6 +18,8 @@ CONFIG += sailfishapp
 CONFIG+=C++11
 
 
+
+
 debug{
     CONFIG+=declarative_debug
     CONFIG+=qml_debug

@@ -236,7 +236,7 @@ void SlippyView::updateCompleteMatrix(bool upd)
     if(upd && ready()) update();
     //update here, because the following stuff is all gui-thread, instead of graphics
 
-    matrices.inverses.zoomAndRotate=(matrices.zoom*matrices.rotate).inverted();
+    matrices.inverses.zoomAndRotate = (matrices.zoom*matrices.rotate).inverted();
 
     matrices.inverses.complete=matrices.complete.inverted();
 
@@ -347,41 +347,37 @@ void SlippyView::touchEvent(QTouchEvent *event)
         );
         qreal zoomFactor = vector.length()/oldVector.length();
 
+        pivot-=matrices.rotationCenter;
+        pivot=matrices.inverses.zoomAndRotate.map(pivot);
+        qDebug() << "pivot length: " << (pivot + matrices.movementFromTile);
         matrices.movementFromTile += matrices.inverses.zoomAndRotate.map(pivot + matrices.movementFromTile)*(1-zoomFactor);
 
-        qreal angle=acos(QVector2D::dotProduct(vector.normalized(), QVector2D(1,0) ));
-        if(vector.y()>0)
-            angle=-angle;
-        qreal oldAngle=acos(QVector2D::dotProduct(oldVector.normalized(), QVector2D(1,0) ));
-        if(oldVector.y()>0)
-            oldAngle = -oldAngle;
-
-
-        angle -= oldAngle;
-
-        matrices.rotation -= angle;
-
-
-        //make sure we rotate about a finger instead of the Just the center
-
-        //pivot is now the vector around wich to rotate
 
 
         if(!lockRotation())
         {
 
-            pivot-=matrices.inverses.zoomAndRotate.map(matrices.rotationCenter);
-            pivot=matrices.inverses.zoomAndRotate.map(pivot);
+            qreal angle=acos(QVector2D::dotProduct(vector.normalized(), QVector2D(1,0) ));
+            if(vector.y()>0)
+                angle=-angle;
+            qreal oldAngle=acos(QVector2D::dotProduct(oldVector.normalized(), QVector2D(1,0) ));
+            if(oldVector.y()>0)
+                oldAngle = -oldAngle;
 
 
+            angle -= oldAngle;
 
+            matrices.rotation -= angle;
+
+
+            //make sure we rotate about a finger instead of the Just the center
+
+            //pivot is now the vector around wich to rotate
 
             QMatrix4x4 rotationRelative;
             //rotationRelative.translate( matrices.rotationCenter.x(), matrices.rotationCenter.y(), 0);
             rotationRelative.rotate(angle*180.0/M_PI, 0,0,1);
             //rotationRelative.translate(-matrices.rotationCenter.x(),-matrices.rotationCenter.y(), 0);
-
-
 
             QPointF rotationCorrection(pivot);
             rotationCorrection=rotationRelative.map(rotationCorrection);
@@ -389,12 +385,10 @@ void SlippyView::touchEvent(QTouchEvent *event)
 
 
 
-
-
             qDebug()<< "PIVOT" << pivot;
             qDebug()<< "rotationCorrection" << rotationCorrection;
 
-            movementRelative+=rotationCorrection;
+//            movementRelative+=rotationCorrection;
             qDebug() << "rotating by " << angle << " to " << matrices.rotation;
         }
 
