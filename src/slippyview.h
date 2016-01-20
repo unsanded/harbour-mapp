@@ -44,6 +44,7 @@ public:
 
     SlippyCoordinates currentLocation;
 
+    //Zoomlevel + 2log(zoomFactor)
     Q_PROPERTY(qreal zoom READ zoom WRITE setzoom NOTIFY zoomChanged)
     Q_PROPERTY(qreal mapRotation READ mapRotation WRITE setmapRotation NOTIFY mapRotationChanged)
     Q_PROPERTY(QGeoCoordinate location READ location WRITE setlocation NOTIFY locationChanged)
@@ -57,14 +58,27 @@ public:
 
 
 protected:
+
+    void updateInverseMatrices(){
+        bool invertible = true;
+        matrices.inverses.zoomAndRotate = (matrices.zoom * matrices.rotate).inverted(&invertible);
+        if(!invertible){
+            qWarning() << "zoom and rotate matrix not ivertible";
+        }
+        matrices.inverses.complete = matrices.complete.inverted(&invertible);
+        if(!invertible){
+            qWarning() << "complete matrix not ivertible";
+        }
+    }
+
     //this struct can only be used in the UpdatePaintNode functions thread
     struct {
-        QSGTransformNode* scrollTransform;
+        //QSGTransformNode* scrollTransform;
        // QSGTransformNode* tileTransform[HTILEBUFFER][VTILEBUFFER];
 
     } nodes;
-    //que of tiles whose node is to be dropped in updatePaintNode()
-    //not in nodes, because this is allowed to be used outside of updatePaintnode
+    // que of tiles whose node is to be dropped in updatePaintNode()
+    // not in nodes, because this is allowed to be used outside of updatePaintnode
     QSet<Tile*> dropNodeQueue;
 
     /**
@@ -92,10 +106,13 @@ protected:
             QMatrix4x4 zoomAndRotate;
             QMatrix4x4 complete;
         } inverses;
-
     } matrices;
 
+    QMap<int,QPointF> oldTouchPoints;
+
     struct {
+        bool movementChanged;
+        bool rotationChanged;
         bool matrixChanged;
         bool gridChanged;
         bool tileChanged;
@@ -119,8 +136,11 @@ protected:
     //update the transformation matrix from the movement rotation and zoom variables.
     void updateCompleteMatrix(bool update=true);
 
+    void rotateBy(qreal radians, QPointF pivot );
 
+    void zoomBy(qreal zoom, QPointF pivot);
 
+    void moveBy(QPointF by);
 
 signals:
 
@@ -142,6 +162,10 @@ signals:
 
 public slots:
 
+    /**
+     * @brief onTileReady lets the view now that a tile has become ready. ie. that it is loaded. 
+     * @param tile
+     */
     void onTileReady(Tile* tile);
 
     // QQuickItem interface
@@ -164,11 +188,10 @@ public slots:
             if(m_tileManager)
                 disconnect(m_tileManager, SIGNAL(activeLayerChanged(int)),
                            this, SLOT(onLayerChanged(int)));
-
             m_tileManager = arg;
 
-                connect(m_tileManager, SIGNAL(activeLayerChanged(int)),
-                           this, SLOT(onLayerChanged(int)));
+            connect(m_tileManager, SIGNAL(activeLayerChanged(int)),
+                       this      , SLOT(onLayerChanged(int)));
 
             emit tileManagerChanged(arg);
         }
@@ -188,10 +211,8 @@ protected:
 public:
     virtual void classBegin();
 virtual void componentComplete();
-qreal zoom() const
-{
-    return currentLocation.zoom() + log2(matrices.zoomFromLevel);
-}
+qreal zoom() const {
+        return currentLocation.zoom() + log2(matrices.zoomFromLevel); }
 
 QGeoCoordinate location() ;
 qreal mapRotation() const ;
@@ -199,20 +220,10 @@ qreal mapRotation() const ;
 void selectLayer(QString name);
 
 
+bool lockRotation() const { return m_lockRotation; }
+bool lockZoom() const { return m_lockZoom; }
 
-bool lockRotation() const
-{
-    return m_lockRotation;
-}
-bool lockZoom() const
-{
-    return m_lockZoom;
-}
-
-TileManager* tileManager() const
-{
-    return m_tileManager;
-}
+TileManager* tileManager() const { return m_tileManager; }
 
 /**
  * @brief ready means that the view has a tile-source, and is ready to draw.

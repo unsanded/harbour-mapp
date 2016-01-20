@@ -91,6 +91,10 @@ public:
 
 
     int zoom() const;
+    /**
+     * @brief tilePos
+     * @return Which tile in the current zoom level the coordinate is in.
+     */
     QPoint tilePos() const
     {
         return m_tilePos;

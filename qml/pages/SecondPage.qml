@@ -31,7 +31,6 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Slippy 1.0
-import QtPositioning 5.0
 
 Page {
     id: root
@@ -64,7 +63,6 @@ Page {
                 Switch{
                     id:controlsVisible
                 }
-
                 Button{
                     text: "Osm"
                     color: "red"
@@ -135,7 +133,7 @@ Page {
             lockZoom:  !rotateSwitch.checked;
         }
 
-
+/*
         //stole this bit from fahrpan
     PositionSource {
         id: positionSource
@@ -159,9 +157,6 @@ Page {
             }
         }
     }
+    */
 }
-
-
-
-
 

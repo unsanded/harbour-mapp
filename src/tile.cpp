@@ -52,26 +52,26 @@ void Tile::dropNode()
 
 Tile::Tile(SlippyCoordinates coordinates, QObject *parent) :
     QObject(parent),
-    coords(coordinates),
-    m_image(256, 256, QImage::Format_ARGB32)
+    m_image(256, 256, QImage::Format_ARGB32),
+    coords(coordinates)
 {
     nodeMadeWhileReady=false;
     node=0;
     transformNode=0;
     texture=0;
 
+
     next=0;
     previous=0;
     m_ready=false;
     m_image.fill(QColor(100,100,200,200));
+
     //just to test
     QPainter p;
     p.begin(&m_image);
-    p.setPen(Qt::green);
-
-    p.drawText(10,10, QString("(%1 : %2,%3)").arg(coords.zoom()).arg(coords.x()).arg(coords.y()) );
-
-    p.drawArc(0,0,256,256,0,270*16);
+        p.setPen(Qt::green);
+        p.drawText(20,100, QString("(%1 : %2,%3)").arg(coords.zoom()).arg(coords.x()).arg(coords.y()) );
+        p.drawArc(0,0,256,256,0,270*16);
     p.end();
 
 
