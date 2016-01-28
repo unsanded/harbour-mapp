@@ -36,8 +36,16 @@
 #include "slippyview.h"
 #include "tilemanager.h"
 #include <QGeoCoordinate>
+#include <iostream>
 #include "providers/googlemapsprovider.h"
+
+
+#ifdef _DESKTOP_BUILD
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+#else
 #include <sailfishapp.h>
+#endif
 
 
 
@@ -56,6 +64,18 @@ int main(int argc, char *argv[])
     qmlRegisterType<OsmProvider>		  ("Slippy", 1,0, "OsmProvider");
     qmlRegisterType<GoogleMapsProvider>("Slippy", 1,0, "GoogleMapsProvider");
     qmlRegisterType<TileManager>       ("Slippy", 1,0, "TileManager");
+
+#ifdef _DESKTOP_BUILD
+    QGuiApplication app(argc, argv);
+
+    QQmlApplicationEngine engine;
+    qDebug() << "hello from main";
+    engine.load(QUrl(QStringLiteral("qml/desktop/main.qml")));
+
+    return app.exec();
+#else
     return SailfishApp::main(argc, argv);
+#endif
+
 }
 

@@ -19,6 +19,10 @@ CONFIG+=C++11
 
 
 
+linux{
+    DEFINES += _DESKTOP_BUILD
+    QT += qml quick
+}
 
 debug{
     CONFIG+=declarative_debug
@@ -74,4 +78,12 @@ HEADERS += \
     src/stores/folderstore.h \
     src/tilemanager.h \
     src/slippycoordinates.h
+
+DISTFILES += \
+    qml/desktop/main.qml
+
+linux{
+RESOURCES += \
+    qml/desktop/qml.qrc
+}
 
