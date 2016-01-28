@@ -38,6 +38,7 @@ class SlippyView : public QQuickItem
     TileManager* m_tileManager;
 
     bool m_ready;
+    
 
 public:
     explicit SlippyView(SlippyCache* cache=new SlippyCache(new OsmProvider),QQuickItem *parent = 0);
@@ -46,6 +47,7 @@ public:
 
     //Zoomlevel + 2log(zoomFactor)
     Q_PROPERTY(qreal zoom READ zoom WRITE setzoom NOTIFY zoomChanged)
+    Q_PROPERTY(qreal zoomFactor READ zoomFactor NOTIFY zoomFactorChanged)
     Q_PROPERTY(qreal mapRotation READ mapRotation WRITE setmapRotation NOTIFY mapRotationChanged)
     Q_PROPERTY(QGeoCoordinate location READ location WRITE setlocation NOTIFY locationChanged)
     Q_PROPERTY(bool lockRotation READ lockRotation WRITE setlockRotation NOTIFY lockRotationChanged)
@@ -61,11 +63,7 @@ protected:
 
     void updateInverseMatrices(){
         bool invertible = true;
-        matrices.inverses.zoomAndRotate = (matrices.zoom * matrices.rotate).inverted(&invertible);
-        if(!invertible){
-            qWarning() << "zoom and rotate matrix not ivertible";
-        }
-        matrices.inverses.complete = matrices.complete.inverted(&invertible);
+        movement.inverses.complete = movement.navigationMatrix.inverted(&invertible);
         if(!invertible){
             qWarning() << "complete matrix not ivertible";
         }
@@ -87,33 +85,26 @@ protected:
      * The transformation is in that order, so all tiles are moved first, then scaled and then rotated.
      */
     struct {
-        QPointF movementOffset;//offset so that the edge of the grid stays off the screen
+        QPointF rotationCenter;
 
-        QPointF movementFromTile;//if this becomes more than one in either direction we have to swap tiles
+        QMatrix4x4 navigationMatrix;//the complete matrix which will be applied to the grid of tiles
 
-        QMatrix4x4 move;
+        //TODO: use this;
+        QMatrix4x4 perspectiveMatrix;
 
-        qreal zoomFromLevel;
-        QMatrix4x4 zoom;
-
-        qreal rotation;
-        QPointF rotationCenter; //the map rotate around this point
-        QMatrix4x4 rotate;
-
-        QMatrix4x4 complete;//the complete matrix which will be applied to the grid of tiles
+        QMatrix4x4 completeMatrix;
 
         struct{
-            QMatrix4x4 zoomAndRotate;
-            QMatrix4x4 complete;
+            QMatrix4x4 complete; //this matrix should at all times map from component pixels to tilespace pixels
         } inverses;
-    } matrices;
+    } movement;
 
     QMap<int,QPointF> oldTouchPoints;
 
     struct {
-        bool movementChanged;
-        bool rotationChanged;
         bool matrixChanged;
+        bool matrixNodeChanged;
+        bool inverseMatrixOutdated;
         bool gridChanged;
         bool tileChanged;
         QStack<Tile*> changedTiles;
@@ -142,7 +133,10 @@ protected:
 
     void moveBy(QPointF by);
 
+    QPointF tileToReal(QPointF tileCoords);
+    QPointF realToTile(QPointF realCoords);
 signals:
+
 
     void zoomChanged(qreal zoom);
     void zoomLevelChanged(int zoomLevel);
@@ -159,6 +153,8 @@ signals:
 
     void readyChanged(bool arg);
     void becomesReady();
+    
+    void zoomFactorChanged(qreal zoomFactor);
 
 public slots:
 
@@ -196,8 +192,8 @@ public slots:
             emit tileManagerChanged(arg);
         }
     }
-
-protected:
+    
+    protected:
     virtual void touchEvent(QTouchEvent *event);
     virtual QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data);
 
@@ -211,8 +207,36 @@ protected:
 public:
     virtual void classBegin();
 virtual void componentComplete();
+    /**
+ * @brief zoom
+ * @return the zoomlevel including the scaling.
+ *  ie. the zoom 1.5 means one of two things:
+ *  - zoomlevel one, but scaled by 2^0.5
+ *  - zoomlevel two, but scaled by 2^-0.5
+ *
+ * Which one it is, usually depends on whether the user has just zoomed in, or just zoomed out.
+ * Because the zoomlevel is lazy (has hysteresis) to prevent it from fetching tiles unnecessearily.
+ */
 qreal zoom() const {
-        return currentLocation.zoom() + log2(matrices.zoomFromLevel); }
+    return zoomLevel() + log2(zoomFactor());
+}
+/**
+ * @brief zoomLevel indicates the depth of zoom.
+ *  * Zero means that the whole world is 1 tile.
+ *  * One means that the whole world is 2x2 tiles.
+ *  * etc.
+ *  the maximum zoomlevel depends on the backend being used.
+ * @return the slippy zoomlevel.
+ */
+qreal zoomLevel() const {
+    return currentLocation.zoom();
+}
+
+qreal zoomFactor() const {
+    //assuming here, that zoom is equal in x and y (as it should be)
+    QVector3D reference(1., 0., 1.);
+    return movement.navigationMatrix.map(reference).length();
+}
 
 QGeoCoordinate location() ;
 qreal mapRotation() const ;
