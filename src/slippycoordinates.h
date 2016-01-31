@@ -265,11 +265,13 @@ private:
         QPointF zoomedMercator = MercatorPos()*n;
 
 
-        settilePos(QPoint(zoomedMercator.x(), zoomedMercator.y()));
-        settileOffset(QPointF(zoomedMercator.x()-floor(zoomedMercator.x()),
-                              zoomedMercator.y()-floor(zoomedMercator.y())
-                              ));
+        m_tilePos=QPoint(zoomedMercator.x(), zoomedMercator.y());
 
+        m_tileOffset = QPointF(zoomedMercator.x()-floor(zoomedMercator.x()),
+                              zoomedMercator.y()-floor(zoomedMercator.y())
+                              );
+        emit tilePosChanged(m_tilePos);
+        emit tileOffsetChanged(m_tileOffset);
 
     }
     bool m_valid;

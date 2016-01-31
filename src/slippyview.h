@@ -3,6 +3,7 @@
 
 #include <QQuickItem>
 #include <QStack>
+#include <QSGSimpleRectNode>
 
 #include <src/slippycache.h>
 #include <src/providers/osmprovider.h>
@@ -16,8 +17,8 @@
 #define HTILEBUFFER (3)
 #define VTILEBUFFER (3)
 #else
-#define HTILEBUFFER (5)
-#define VTILEBUFFER (5)
+#define HTILEBUFFER (6)
+#define VTILEBUFFER (6)
 #endif
 
 #define HTILESIZE (256)
@@ -41,7 +42,7 @@ class SlippyView : public QQuickItem
     
 
 public:
-    explicit SlippyView(SlippyCache* cache=new SlippyCache(new OsmProvider),QQuickItem *parent = 0);
+    explicit SlippyView(QQuickItem *parent = 0);
 
     SlippyCoordinates currentLocation;
 
@@ -86,18 +87,32 @@ protected:
      */
     struct {
         QPointF rotationCenter;
+        QRectF  stepBounds;
 
         QMatrix4x4 navigationMatrix;//the complete matrix which will be applied to the grid of tiles
-
         //TODO: use this;
         QMatrix4x4 perspectiveMatrix;
-
         QMatrix4x4 completeMatrix;
 
         struct{
             QMatrix4x4 complete; //this matrix should at all times map from component pixels to tilespace pixels
         } inverses;
+
+#ifndef _NO_MOUSE
+        QPointF lastMousePos;
+#endif
+
     } movement;
+
+
+    struct {
+        QSGSimpleRectNode* debugNode;
+        QRectF debugPos;
+        QSGSimpleRectNode* debugNode2;
+        QRectF debugPos2;
+
+
+    } debug;
 
     QMap<int,QPointF> oldTouchPoints;
 
@@ -138,23 +153,21 @@ protected:
 signals:
 
 
+    void becomesReady();
+
+    //// CHANGE NOTIFIERS
     void zoomChanged(qreal zoom);
     void zoomLevelChanged(int zoomLevel);
-
     void locationChanged(QGeoCoordinate arg);
-
     void mapRotationChanged(qreal arg);
-
     void lockRotationChanged(bool arg);
-
     void lockZoomChanged(bool arg);
-
     void tileManagerChanged(TileManager* arg);
-
     void readyChanged(bool arg);
-    void becomesReady();
-    
     void zoomFactorChanged(qreal zoomFactor);
+
+protected slots:
+    void onResize();
 
 public slots:
 
@@ -177,24 +190,11 @@ public slots:
 
     void setlockZoom(bool arg);
 
-    void settileManager(TileManager* arg)
-    {
-        if (m_tileManager != arg) {
-
-            if(m_tileManager)
-                disconnect(m_tileManager, SIGNAL(activeLayerChanged(int)),
-                           this, SLOT(onLayerChanged(int)));
-            m_tileManager = arg;
-
-            connect(m_tileManager, SIGNAL(activeLayerChanged(int)),
-                       this      , SLOT(onLayerChanged(int)));
-
-            emit tileManagerChanged(arg);
-        }
-    }
+    void settileManager(TileManager* arg);
     
     protected:
     virtual void touchEvent(QTouchEvent *event);
+
     virtual QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data);
 
 
@@ -234,14 +234,18 @@ qreal zoomLevel() const {
 
 qreal zoomFactor() const {
     //assuming here, that zoom is equal in x and y (as it should be)
-    QVector3D reference(1., 0., 1.);
-    return movement.navigationMatrix.map(reference).length();
+    QVector3D zero;
+    QVector3D reference(1., 0., 0.);
+    reference = movement.navigationMatrix.map(reference);
+    zero = movement.navigationMatrix.map(zero);
+
+    return (reference - zero).length();
+
 }
 
 QGeoCoordinate location() ;
 qreal mapRotation() const ;
 
-void selectLayer(QString name);
 
 
 bool lockRotation() const { return m_lockRotation; }
@@ -257,6 +261,14 @@ bool ready() const
 {
     return m_ready;
 }
+
+protected:
+#ifndef _NO_MOUSE
+virtual void mousePressEvent(QMouseEvent *event) override;
+virtual void mouseMoveEvent(QMouseEvent *event) override;
+virtual void wheelEvent(QWheelEvent *event) override;
+#endif
+
 };
 
 #endif // SLIPPYVIEW_H

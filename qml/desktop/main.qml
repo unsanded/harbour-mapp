@@ -15,12 +15,13 @@ Window {
 
     Row{
         width: parent.width
+        height: 30;
         Button{
             id: osmButton;
             text: "osm"
             width: parent.width/2
             onClicked: {
-                mapview.selectLayer(0);
+                manager.selectLayer(0);
             }
         }
         Button{
@@ -28,7 +29,7 @@ Window {
             text: "gmaps"
             width: parent.width/2
             onClicked: {
-                mapview.selectLayer(1);
+                manager.selectLayer(1);
             }
         }
     }
@@ -46,10 +47,21 @@ Window {
 
     SlippyView{
         id:mapview
+        anchors.centerIn: parent
+        width: parent.width/2;
+        height: parent.height/2;
         tileManager: manager
-        anchors.fill: parent
-        z: -5
+        z: 5
 
+    }
+    Rectangle{
+        anchors.centerIn: parent
+        width: parent.width/2;
+        height: parent.height/2;
+        color: "#00000000"
+        border.color: "black"
+        clip: false;
+        z: 6
     }
 }
 

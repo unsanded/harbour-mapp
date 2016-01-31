@@ -9,18 +9,32 @@
 using namespace std;
 
 
-SlippyView::SlippyView(SlippyCache *cache, QQuickItem *parent) :
+
+SlippyView::SlippyView( QQuickItem *parent) :
     QQuickItem(parent),
+    m_lockRotation(false),
+    m_lockZoom(false),
     m_tileManager(0),
     m_ready(false),
-    currentLocation(4,3,3),
-    cache(cache)
+    currentLocation(4,3,3)
 {
-#ifndef _DEBUG
-    setFlag(ItemClipsChildrenToShape);
-#endif
+    debug.debugPos = QRectF(0,0, 20, 20);
+    debug.debugPos2 = QRectF(10,10, 30, 30);
     setFlag(ItemHasContents);
     setFlag(ItemAcceptsInputMethod);
+
+#ifndef _NO_MOUSE
+    setAcceptedMouseButtons(Qt::AllButtons);
+#endif
+
+    connect(this, SIGNAL(widthChanged()), this, SLOT(onResize()));
+    connect(this, SIGNAL(heightChanged()), this, SLOT(onResize()));
+
+    movement.stepBounds =
+                QRectF(HTILEBUFFER*HTILESIZE/2 - HTILESIZE,
+                       VTILEBUFFER*VTILESIZE/2 - HTILESIZE,
+                       HTILESIZE*2,
+                       VTILESIZE*2);
 
 }
 
@@ -34,6 +48,7 @@ void SlippyView::stepTile(int dx, int dy)
         return;
     }
     changes.tileChanged = true;
+    changes.gridChanged = true;
 
     currentLocation.settilePos(currentLocation.tilePos()- QPoint(dx,dy));
     int tileX = currentLocation.tilePos().x();
@@ -162,22 +177,36 @@ void SlippyView::updateCompleteMatrix(bool upd)
     qDebug() << "updateing matrix";
 
     //ok, so stepping is the point in tile-coordinates that has to stay withing the bounding box of 256
-    QPointF stepping( realToTile({0., 0.}));
 
-    if(!(QRectF(-1*256.0,-1*256.0,2*256.0,2*256.0)).contains(stepping))
+    QPointF stepping( realToTile(movement.rotationCenter) );
+
+
+    debug.debugPos .moveTo( stepping );
+    debug.debugPos2 = movement.stepBounds;
+
+    // check if we have to step to a different tile.
+    if(!movement.stepBounds.contains(stepping))
     {
-        //qDebug() << "stepping" << matrices.movementFromTile;
-        //step all the tiles one way
+        qDebug() << "stepping" << stepping;
         if(ready())
         {
-            stepTile(stepping.x()/256, stepping.y()/256);
+            stepping -= movement.stepBounds.center();
+
+            //step all the tiles one way
+            stepTile(stepping.x()/-256, stepping.y()/-256);
 
             //move the whole grid exactly the other way
             QPointF stepBack( (int)(stepping.x()/256),(int)(stepping.y()/256) );
             stepBack *= 256;
 
-            stepBack = movement.navigationMatrix.map(stepBack);
+//            stepBack = movement.navigationMatrix.map(stepBack);
+
+            QMatrix4x4 backStep;
+            backStep.translate(stepBack.x(), stepBack.y());
+
             movement.navigationMatrix.translate(stepBack.x(), stepBack.y(),0);
+
+            //movement.navigationMatrix = backStep * movement.navigationMatrix;
         }
     }
 
@@ -196,20 +225,26 @@ void SlippyView::updateCompleteMatrix(bool upd)
 
         movement.navigationMatrix.scale(2.0);
         // move x and y half a tile, if the tile position of the previous layer was odd (ie. we're now halfway a tile for that direcion);
-        movement.navigationMatrix.translate(QVector3D(tileToReal({halfWayX*TILE_SIZE/2., halfWayY*TILE_SIZE/2.})));
+        movement.navigationMatrix.translate(QVector3D(tileToReal(
+        {(qreal)(halfWayX*TILE_SIZE/2.),
+         (qreal)(halfWayY*TILE_SIZE/2.)})));
         reTile();
     }
-
     else
     if(factor > 2)
     {
         bool halfWayX = currentLocation.tilePos().x()&1;//so, we are halfway the tile while zooming out
         bool halfWayY = currentLocation.tilePos().y()&1;
 
+        qDebug() << "halfway" << halfWayX << halfWayY;
+
         currentLocation.setzoom(currentLocation.zoom()+1);
         movement.navigationMatrix.scale(0.5);
 
-        movement.navigationMatrix.translate(QVector3D(tileToReal(TILE_SIZE/2 * QPointF(halfWayX, halfWayY))));
+        QMatrix4x4 zoomFix;
+        zoomFix.translate(QVector3D(TILE_SIZE * QPointF(-halfWayX, -halfWayY)));
+
+//        movement.navigationMatrix = zoomFix * movement.navigationMatrix;
 
         reTile();
     }
@@ -221,6 +256,7 @@ void SlippyView::updateCompleteMatrix(bool upd)
     //this is the final matrix from tile to screen
     movement.completeMatrix = movement.perspectiveMatrix * movement.navigationMatrix;
 
+    changes.matrixChanged = true;
     if(upd && ready()) update();
     //update here, because the following stuff is all gui-thread, instead of graphics
 
@@ -229,10 +265,14 @@ void SlippyView::updateCompleteMatrix(bool upd)
 
 void SlippyView::rotateBy(qreal radians, QPointF pivot)
 {
-    
-    movement.navigationMatrix.translate(-pivot.x(), -pivot.y());
-    movement.navigationMatrix.rotate   (radians*180. * M_1_PI, 0, 0, 1 );
-    movement.navigationMatrix.translate( pivot.x(),  pivot.y());
+    QMatrix4x4 rotate;
+
+    rotate.translate( pivot.x(),  pivot.y());
+    rotate.rotate   (radians*180. * M_1_PI, 0, 0, 1 );
+    rotate.translate(-pivot.x(), -pivot.y());
+
+    // insert rotation before existing transformation
+    movement.navigationMatrix = rotate * movement.navigationMatrix;
 
     changes.matrixChanged = true;
     updateCompleteMatrix();
@@ -240,16 +280,23 @@ void SlippyView::rotateBy(qreal radians, QPointF pivot)
 
 void SlippyView::zoomBy(qreal zoom, QPointF pivot)
 {
-    movement.navigationMatrix.translate(-pivot.x(), -pivot.y());
-    movement.navigationMatrix.scale(zoom);
-    movement.navigationMatrix.translate( pivot.x(),  pivot.y());
+    QMatrix4x4 scale;
+    scale.translate( pivot.x(),  pivot.y());
+    scale.scale(zoom);
+    scale.translate(-pivot.x(), -pivot.y());
+
+    movement.navigationMatrix = scale * movement.navigationMatrix;
+
     changes.matrixChanged=true;
     updateCompleteMatrix();
 }
 
 void SlippyView::moveBy(QPointF by)
 {
-    movement.navigationMatrix.translate(by.x(), by.y());
+    QMatrix4x4 move;
+    move.translate(by.x(), by.y());
+    //multiply before in stead of after;
+    movement.navigationMatrix = move * movement.navigationMatrix;
     updateCompleteMatrix();
 }
 
@@ -261,6 +308,12 @@ QPointF SlippyView::tileToReal(QPointF tileCoords)
 QPointF SlippyView::realToTile(QPointF realCoords)
 {
     return movement.inverses.complete.map(realCoords);
+}
+
+void SlippyView::onResize()
+{
+    movement.rotationCenter.rx() = width()/2;
+    movement.rotationCenter.ry() = height()/2;
 }
 
 void SlippyView::onTileReady(Tile *tile)
@@ -327,6 +380,22 @@ void SlippyView::setlockZoom(bool arg)
     if (m_lockZoom != arg) {
         m_lockZoom = arg;
         emit lockZoomChanged(arg);
+    }
+}
+
+void SlippyView::settileManager(TileManager *arg)
+{
+    if (m_tileManager != arg) {
+
+        if(m_tileManager)
+            disconnect(m_tileManager, SIGNAL(activeLayerChanged(int)),
+                       this, SLOT(onLayerChanged(int)));
+        m_tileManager = arg;
+
+        connect(m_tileManager, SIGNAL(activeLayerChanged(int)),
+                this      , SLOT(onLayerChanged(int)));
+
+        emit tileManagerChanged(arg);
     }
 }
 
@@ -421,10 +490,9 @@ void SlippyView::touchEvent(QTouchEvent *event)
             if(oldVector.y()>0)
                 oldAngle = -oldAngle;
 
-
             angle -= oldAngle;
 
-            rotateBy(angle, pivot);
+            rotateBy(-angle, pivot);
 
 
 
@@ -439,7 +507,7 @@ void SlippyView::touchEvent(QTouchEvent *event)
     }
 
     for (auto point : event->touchPoints() )
-   if (point.state() == Qt::TouchPointMoved)
+    if (point.state() == Qt::TouchPointMoved)
     {
        oldTouchPoints[point.id()] = point.pos();
     }
@@ -456,13 +524,16 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData* /*da
     {
         node=new QSGTransformNode;
 
+        debug.debugNode = new QSGSimpleRectNode(debug.debugPos, QColor(255, 0,0,128));
+        debug.debugNode2= new QSGSimpleRectNode(debug.debugPos2, QColor(0, 255,0,128));
+
         //initialise transformation nodes for each tile;
         changes.gridChanged=true;
         node->markDirty(QSGNode::DirtyForceUpdate);
     }
-
     else
         node=(QSGTransformNode*) oldNode;
+
 
     if(changes.matrixChanged){
         node->setMatrix(movement.navigationMatrix);
@@ -485,6 +556,10 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData* /*da
             drawnTiles[i][j]->transformNode->setMatrix(translation);
             drawnTiles[i][j]->transformNode->markDirty(QSGNode::DirtyMatrix);
         }
+        node->appendChildNode(debug.debugNode );
+        node->appendChildNode(debug.debugNode2);
+
+
         if(!dropNodeQueue.empty())
         {
             //qDebug() << "dropping nodes";
@@ -494,8 +569,14 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData* /*da
             dropNodeQueue.clear();
         }
     }
+
+    debug.debugNode ->markDirty(QSGNode::DirtyForceUpdate);
+    debug.debugNode2->markDirty(QSGNode::DirtyForceUpdate);
+    debug.debugNode ->setRect(debug.debugPos);
+    debug.debugNode2->setRect(debug.debugPos2);
+
     if(changes.tileChanged){
-        changes.tileChanged=false;
+        changes.tileChanged = false;
         for( Tile* n : changes.changedTiles){
             if(n->node)
                     n->makeNode(window());
@@ -503,7 +584,6 @@ QSGNode *SlippyView::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData* /*da
         changes.changedTiles.clear();
 
         node->markDirty(QSGNode::DirtyMaterial);
-        //qDebug() << "node changed";
     }
     return node;
 }
@@ -525,10 +605,10 @@ void SlippyView::componentComplete()
 {
     QQuickItem::componentComplete();
     connect(cache, SIGNAL(tileReady(Tile*)), this, SLOT(onTileReady(Tile*)));
-    movement.rotationCenter.setX(width()/2);
-    movement.rotationCenter.setY(height()/2);
-    //qDebug() << "Width: " << width();
-    //qDebug() << "height: " << height();
+    movement.rotationCenter.setX( width() /2);
+    movement.rotationCenter.setY( height()/2);
+    qDebug() << "Width: "  << width();
+    qDebug() << "height: " << height();
 
     if(!tileManager()){
         settileManager(TileManager::getDefault());
@@ -558,6 +638,38 @@ qreal SlippyView::mapRotation() const
         return M_PI*2 - acos(rotated.x());
 }
 
+void SlippyView::mousePressEvent(QMouseEvent *event)
+{
+    event->accept();
+    qDebug() << "PRESSED";
+    movement.lastMousePos = event->pos();
+}
 
+#ifndef _NO_MOUSE
+void SlippyView::mouseMoveEvent(QMouseEvent *event)
+{
+    if (!(event->buttons() & Qt::LeftButton)){
+        return;
+    }
+    event->accept();
+    QPointF movedBy = event -> pos() - movement.lastMousePos;
+    moveBy(movedBy);
+    movement.lastMousePos = event->pos();
+
+
+}
+
+void SlippyView::wheelEvent(QWheelEvent *event)
+{
+    qDebug() << "WHEEEL";
+
+    qreal angle = event->angleDelta().y();
+    angle /= 1800/M_PI;
+
+
+    zoomBy(1.0 + angle, event->pos());
+
+}
+#endif
 
 

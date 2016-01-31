@@ -128,9 +128,6 @@ Page {
             id:mapview
             zoom: zoomSlider.value
             mapRotation: rotationSlider.value
-
-            lockRotation: rotateSwitch.checked;
-            lockZoom:  !rotateSwitch.checked;
         }
 
 /*

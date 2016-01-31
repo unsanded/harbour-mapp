@@ -18,16 +18,21 @@ CONFIG += sailfishapp
 CONFIG+=C++11
 
 
-
 linux{
-    DEFINES += _DESKTOP_BUILD
-    QT += qml quick
+    exists("/usr/include/sailfishapp/sailfishapp.h"): {
+        DEFINES += _MOUSE
+    }else{
+        CONFIG  += desktop
+        DEFINES += _DESKTOP_BUILD
+        QT += qml quick
+    }
 }
 
-debug{
+*:debug{
     CONFIG+=declarative_debug
     CONFIG+=qml_debug
-    DEFINES+=_DEBUG
+    DEFINES+= _DEBUG
+    message("compiling for debug")
 }
 
 QT += gui positioning
@@ -82,8 +87,9 @@ HEADERS += \
 DISTFILES += \
     qml/desktop/main.qml
 
-linux{
-RESOURCES += \
-    qml/desktop/qml.qrc
+!exists("/usr/include/sailfishapp/sailfishapp.h"): {
+    message("adding recource file")
+    RESOURCES += \
+        qml/desktop/qml.qrc
 }
 

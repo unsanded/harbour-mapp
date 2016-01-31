@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     qDebug() << "hello from main";
-    engine.load(QUrl(QStringLiteral("qml/desktop/main.qml")));
+    engine.load(QUrl(QStringLiteral("qrc:/desktop/main.qml")));
 
     return app.exec();
 #else
